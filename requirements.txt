@@ -1,0 +1,3 @@
+wxPython==4.0.3
+PyInstaller
+qt4a
