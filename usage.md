@@ -1,7 +1,5 @@
 # AndroidUISpy使用文档
 
-## 下载
-
 AndroidUISpy可以辅助探测Android端原生控件树和Web Dom树，帮助使用 [QT4A](https://github.com/Tencent/QT4A) 进行控件QPath和XPath的封装。
 
 接下来以Windows版本(AndroidUISpy.exe)为例，说明如何探测Android原生控件树和Web Dom树。
@@ -14,10 +12,7 @@ AndroidUISpy可以辅助探测Android端原生控件树和Web Dom树，帮助使用 [QT4A](https://
 
 如上，使用左上角+号在屏幕内探测目标控件，左侧会显示对应控件树节点。当然，在左侧控件树点击节点，也会自动探测到右侧的目标区域。如果打开AndroidUiSpy时没有自动抓取控件树并显示正确的Activity名，请先手动用左上角+号在屏幕内探测任何一个控件，此时会获取Activity等信息。
 
-
 ## 探测Web Dom树
-
-### 安装chrome
 
 请确保你PC上已安装chrome浏览器。然后来到目标webview网页视图，在AndroidUiSpy左侧区域-鼠标右键-查找WebView控件，此时会找到控件树中对应WebView控件（命名为节点A），如下：
 
