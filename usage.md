@@ -2,7 +2,7 @@
 
 ## 概述
 
-请先下载 [AndroidUISpy工具](https://github.com/qtacore/AndroidUISpy/releases)。AndroidUISpy可以辅助探测Android端原生控件树和Web Dom树，帮助使用 [QT4A](https://github.com/Tencent/QT4A) 进行控件QPath和XPath的封装。
+AndroidUISpy可以辅助探测Android端原生控件树和Web Dom树，帮助使用 [QT4A](https://github.com/Tencent/QT4A) 进行控件QPath和XPath的封装。请从github下载 [AndroidUISpy工具](https://github.com/qtacore/AndroidUISpy/releases)。
 
 接下来以Windows版本(AndroidUISpy.exe)为例，说明如何探测Android原生控件树和Web Dom树。
 
