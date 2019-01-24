@@ -19,6 +19,14 @@
 import json
 from utils.exceptions import WebViewDebuggingNotEnabledError
 
+def replace_url_func_wrap(func):
+    '''替换调试url
+    '''
+    def _func(*args, **kwargs):
+        url = func(*args, **kwargs)
+        return url.replace('chrome-devtools-frontend.appspot.com', 'chrome-devtools-frontend.netlify.com')
+    return _func
+    
 class WebViewDebuggingTool(object):
     '''WebView调试工具
     '''
@@ -74,6 +82,7 @@ class WebViewDebuggingTool(object):
         import difflib
         return difflib.SequenceMatcher(None, text1, text2).ratio()
     
+    @replace_url_func_wrap
     def get_debugging_url(self, process_name, multi_page_callback, url, title=None):
         '''获取WebView调试页面url
         '''
