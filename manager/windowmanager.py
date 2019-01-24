@@ -175,8 +175,8 @@ class WindowManager(BaseManager):
         # print result
         windows = []
         window = None
-        p1 = re.compile(r'^  Window #(\d+) Window{(\w{6,8}) (.*)}:$')
-        p2 = re.compile(r'Window{(\w{6,8}) (u0 ){0,1}(\S+).*}')
+        p1 = re.compile(r'^  Window #(\d+) Window{(\w{6,9}) (.*)}:$')
+        p2 = re.compile(r'Window{(\w{6,9}) (u0 ){0,1}(\S+).*}')
         p3 = re.compile(r'mShownFrame=\[([-\d\.]+),([-\d\.]+)\]\[([-\d\.]+),([-\d\.]+)\]')
         for line in result.split('\n')[1:]:
             # print repr(line)
