@@ -18,9 +18,6 @@
     `source .env/bin/activate`
 3. `pip install -r requirements.txt`
 
-如果是`Windows`系统，还需要执行：
-
-`pip install -r requirements_win32.txt`
 
 ## HOW TO DEBUG
 
