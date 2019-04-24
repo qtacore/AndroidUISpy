@@ -44,36 +44,65 @@ class WebViewDebuggingTool(object):
             if name.startswith('@webview_devtools_remote_'):
                 if not name[1:] in server_list: server_list.append(name[1:])
         return server_list
-    
+
+    def get_service_name(self, process_name):
+        pid = self._device.adb.get_pid(process_name)
+        return 'webview_devtools_remote_%d' % pid
+
     def is_webview_debugging_opened(self, process_name):
         '''是否进程开启了WebView调试
         '''
-        pid = self._device.adb.get_pid(process_name)
-        return ('webview_devtools_remote_%d' % pid) in self.get_webview_debugging_server_list()
-        
+        service_name = self.get_service_name(process_name)
+        return service_name in self.get_webview_debugging_server_list()
+
+    def get_page_info(self, sock, debugging_url):
+        '''通过执行js获取页面标题和url
+        '''
+        try:
+            import chrome_master
+        except ImportError:
+            return None, None
+        if debugging_url.startswith('ws:///'):
+            debugging_url = 'ws://localhost%s' % debugging_url[5:]
+
+        debugger = chrome_master.RemoteDebugger(debugging_url, lambda: sock)
+        debugger.register_handler(chrome_master.RuntimeHandler)
+        url = debugger.runtime.eval_script(None, 'location.href')
+        title = debugger.runtime.eval_script(None, 'document.title')
+        return title, url
+
     def get_webview_page_list(self, process_name):
         '''获取进程打开的WebView页面列表
         '''
-        pid = self._device.adb.get_pid(process_name)
-        sock = self._device.adb.create_tunnel('webview_devtools_remote_%d' % pid, 'localabstract')
+        service_name = self.get_service_name(process_name)
+        sock = self._device.adb.create_tunnel(service_name, 'localabstract')
         if not sock: raise WebViewDebuggingNotEnabledError('WebView debugging in %s not enabled' % process_name)
         sock.send('GET /json HTTP/1.1\r\n\r\n')
         resp = sock.recv(4096)
         pos = resp.find('\r\n\r\n')
         body = resp[pos + 4:]
-        print body
+        print(body)
         page_list = json.loads(body)
         result = []
         for page in page_list:
             if page['type'] != 'page': continue
-            if page['url'] == 'about:blank': continue
             desc = page['description']
             if desc:
                 page['description'] = json.loads(desc)
                 if not page['description'].get('width') or not page['description'].get('height'): 
                     continue
                 if not page['description']['visible']: continue
+            if page['url'] == 'about:blank': # and page['title'] == 'about:blank'
+                # 微信小程序中发现这里返回的url和title可能都不对
+                if not 'webSocketDebuggerUrl' in page:
+                    raise RuntimeError('请关闭已打开的Web调试页面')
+                title, url = self.get_page_info(sock, page['webSocketDebuggerUrl'])
+                if not url or url == 'about:blank':
+                    continue
+                page['url'] = url
+                page['title'] = title
             result.append(page)
+        sock.close()
         return result
     
     def _get_similar(self, text1, text2):
