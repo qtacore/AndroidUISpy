@@ -451,7 +451,7 @@ class MainFrame(wx.Frame):
         '''设置手机屏幕截图
         '''
         path = os.path.join(os.path.abspath(os.curdir), 'screen.png')
-        Log.i('Screenshot', path)
+        # Log.d('Screenshot', path)
         tmp_path = '/data/local/tmp/screen.png'
         
         try:
@@ -1385,7 +1385,7 @@ class TreeNodePopupMenu(wx.Menu):
         
         def on_multi_pages(page_list):
             title_black_patterns = [r'^wx.+:INVISIBLE$']
-            url_black_patterns = [r'https://servicewechat.com/.+page-frame.html']
+            url_black_patterns = [] # r'https://servicewechat.com/.+page-frame.html'
             for i in range(len(page_list) - 1, -1, -1):
                 page = page_list[i]
                 title = page['title']
@@ -1625,7 +1625,7 @@ class SelectPageDialog(wx.Dialog):
         self._cb_pages = wx.ComboBox(self, wx.ID_ANY, pos=(20, 40), size=(500, 24))
         self._items = []
         for i, page in enumerate(page_list): 
-            value = u'%s' % (page['title'] if page['title'] else page['url'])
+            value = u'%d. %s' % ((i + 1), page['title'] if page['title'] else page['url'])
             self._items.append(value)
             self._cb_pages.Append(value)
             if i == 0:
