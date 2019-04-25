@@ -49,13 +49,17 @@ class WebViewDebuggingTool(object):
         pid = self._device.adb.get_pid(process_name)
         return 'webview_devtools_remote_%d' % pid
 
+    def create_tunnel(self, process_name):
+        service_name = self.get_service_name(process_name)
+        return self._device.adb.create_tunnel(service_name, 'localabstract')
+
     def is_webview_debugging_opened(self, process_name):
         '''是否进程开启了WebView调试
         '''
         service_name = self.get_service_name(process_name)
         return service_name in self.get_webview_debugging_server_list()
 
-    def get_page_info(self, sock, debugging_url):
+    def get_page_info(self, process_name, debugging_url):
         '''通过执行js获取页面标题和url
         '''
         try:
@@ -65,20 +69,26 @@ class WebViewDebuggingTool(object):
         if debugging_url.startswith('ws:///'):
             debugging_url = 'ws://localhost%s' % debugging_url[5:]
 
-        debugger = chrome_master.RemoteDebugger(debugging_url, lambda: sock)
+        debugger = chrome_master.RemoteDebugger(debugging_url, lambda: self.create_tunnel(process_name))
         debugger.register_handler(chrome_master.RuntimeHandler)
+        body = debugger.runtime.eval_script(None, 'document.body.innerText').strip()
+        if not body:
+            # 过滤掉body为空的页面
+            debugger.close()
+            return '', ''
         url = debugger.runtime.eval_script(None, 'location.href')
         title = debugger.runtime.eval_script(None, 'document.title')
+        debugger.close()
         return title, url
 
     def get_webview_page_list(self, process_name):
         '''获取进程打开的WebView页面列表
         '''
-        service_name = self.get_service_name(process_name)
-        sock = self._device.adb.create_tunnel(service_name, 'localabstract')
+        sock = self.create_tunnel(process_name)
         if not sock: raise WebViewDebuggingNotEnabledError('WebView debugging in %s not enabled' % process_name)
         sock.send('GET /json HTTP/1.1\r\n\r\n')
         resp = sock.recv(4096)
+        sock.close()
         pos = resp.find('\r\n\r\n')
         body = resp[pos + 4:]
         print(body)
@@ -92,17 +102,26 @@ class WebViewDebuggingTool(object):
                 if not page['description'].get('width') or not page['description'].get('height'): 
                     continue
                 if not page['description']['visible']: continue
-            if page['url'] == 'about:blank': # and page['title'] == 'about:blank'
+            if 'webSocketDebuggerUrl' not in page:
+                raise RuntimeError('请关闭已打开的所有调试页面')
+
+            if page['url'] == 'about:blank' and page['title'] == 'about:blank':
                 # 微信小程序中发现这里返回的url和title可能都不对
                 if not 'webSocketDebuggerUrl' in page:
                     raise RuntimeError('请关闭已打开的Web调试页面')
-                title, url = self.get_page_info(sock, page['webSocketDebuggerUrl'])
+                title, url = self.get_page_info(process_name, page['webSocketDebuggerUrl'])
                 if not url or url == 'about:blank':
                     continue
                 page['url'] = url
                 page['title'] = title
+            elif page['url'] == 'about:blank':
+                continue
+            else:
+                title, url = self.get_page_info(process_name, page['webSocketDebuggerUrl'])
+                if title == '' and url == '':
+                    # 页面内容为空
+                    continue
             result.append(page)
-        sock.close()
         return result
     
     def _get_similar(self, text1, text2):

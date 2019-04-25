@@ -22,4 +22,5 @@ AndroidUISpy可以辅助探测Android端原生控件树和Web Dom树，帮助使
 
 接着对着节点A-右键-启动WebView调试，过会会自动调起chrome浏览器显示Dom树，点击Dom树各节点，可以看到AndroidUISpy内app屏幕对应区域被选中。接下来你就可以开始Web控件的XPath封装了。
 
+对于低于`Chrome 50`版本的WebView，在调试时可能出现显示异常问题，建议使用低于Chrome 50的浏览器进行调试。推荐使用[Chrome 49随身版](https://raw.githubusercontent.com/qtacore/AndroidUISpy/master/res/ChromePortable49.7z)，该版本解决了在HTTPS页面上访问WebSocket协议报错问题。
 
