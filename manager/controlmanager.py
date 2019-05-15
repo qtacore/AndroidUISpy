@@ -31,6 +31,8 @@ class EnumWebViewType(object):
     NotWebView = 0
     SystemWebView = 1
     X5WebView = 2
+    XWalkWebView = 3
+
 
 class ControlManager(BaseManager):
     '''控件管理
@@ -255,7 +257,16 @@ class ControlManager(BaseManager):
         pid = self._device.adb.get_pid(process_name)
         webview = self.get_webview(process_name, hashcode)
         webview_type = webview.get_webview_type()
-        if webview_type == EnumWebViewType.X5WebView or self._device.adb.get_sdk_version() >= 19:
+        debugging_url = None
+        service_name = ''
+        if webview_type == EnumWebViewType.XWalkWebView:
+            debugging_tool = WebViewDebuggingTool(self._device)
+            if not debugging_tool.is_webview_debugging_opened(process_name):
+                driver = self._get_driver(process_name)
+                driver.call_static_method('org.xwalk.core.internal.XWalkPreferencesInternal', 'setValue', hashcode, '', 'remote-debugging', True)
+            debugging_url = debugging_tool.get_debugging_url(process_name, multi_page_callback, None)
+            service_name = 'xweb_devtools_remote_%d' % pid
+        elif webview_type == EnumWebViewType.X5WebView or self._device.adb.get_sdk_version() >= 19:
             # 支持Chrome远程调试
             debugging_tool = WebViewDebuggingTool(self._device)
             if not debugging_tool.is_webview_debugging_opened(process_name):
@@ -264,13 +275,15 @@ class ControlManager(BaseManager):
             # webview.eval_script([], (ChromeInspectWebSocket.base_script % 'false') + ';qt4a_web_inspect._inspect_mode=true;')
             
             debugging_url = debugging_tool.get_debugging_url(process_name, multi_page_callback, None)
-            if debugging_url == None: return None
-            pos = debugging_url.find('?ws=')
-            if pos <= 0: raise RuntimeError('Invalid debugging url: %s' % debugging_url)
-            port = get_process_name_hash(process_name, self._device._device_id)
-            port = self._device.adb.forward(port, 'webview_devtools_remote_%d' % pid, 'localabstract')
-            debugging_url = debugging_url[:pos + 4] + ('127.0.0.1:%d' % port) + debugging_url[pos + 4:]
-            return Chrome.open_url(debugging_url)
+            service_name = 'webview_devtools_remote_%d' % pid
+
+        if debugging_url == None: return None
+        pos = debugging_url.find('?ws=')
+        if pos <= 0: raise RuntimeError('Invalid debugging url: %s' % debugging_url)
+        port = get_process_name_hash(process_name, self._device._device_id)
+        port = self._device.adb.forward(port, service_name, 'localabstract')
+        debugging_url = debugging_url[:pos + 4] + ('127.0.0.1:%d' % port) + debugging_url[pos + 4:]
+        return Chrome.open_url(debugging_url)
         
     
     def get_webview(self, process_name, hashcode):
@@ -303,7 +316,9 @@ class WebView(object):
         if not isinstance(result, list): result = [result]
 
         for tp in result:
-            if tp in ['com.tencent.smtt.webkit.WebView',
+            if tp.startswith('org.xwalk.core.internal.XWalkContent$'):
+                return EnumWebViewType.XWalkWebView
+            elif tp in ['com.tencent.smtt.webkit.WebView',
                       'com.tencent.tbs.core.webkit.WebView',
                       ]:
                 return EnumWebViewType.X5WebView
