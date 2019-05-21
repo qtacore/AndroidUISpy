@@ -491,7 +491,7 @@ class MainFrame(wx.Frame):
         self._tree_list = []
         index = -1
         for idx, key in enumerate(controls_dict.keys()):
-            if index < 0 and key: index = idx
+            if index < 0: index = idx
             process_name = controls_dict[key][0]
             for i in range(1, len(controls_dict[key])):
                 tree = wx.TreeCtrl(self.main_panel, id=wx.ID_ANY, pos=(5, 0), size=(600, self._main_height - 20))
