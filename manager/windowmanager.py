@@ -100,6 +100,7 @@ class Window(object):
         if self._title == 'SurfaceView': return False  # 暂不支持SurfaceView
         w, h = self.size
         if w == 0 or h == 0: return False
+        if w < 20 or h < 20: return False
         if self.title in ['Heads', 'StatusBar', 'InputMethod', 'NavigationBar', 'KeyguardScrim', 'com.android.launcher2.Launcher', 'RecentsPanel']: return False
         if not 'x' in self._attrs or not 'y' in self._attrs: return False
         if self._attrs['x'] > 0 or self._attrs['y'] > 0: return True
