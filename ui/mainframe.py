@@ -19,6 +19,7 @@
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 import wx
@@ -317,7 +318,7 @@ class MainFrame(wx.Frame):
             img = Image.open(image_path)
             img.verify()  # 验证完之后需要重新打开
             img = Image.open(image_path)
-        except Exception, e:
+        except Exception as e:
             Log.ex('ImageError', image_path, e)
             return
         w, h = img.size
@@ -335,15 +336,16 @@ class MainFrame(wx.Frame):
         self._screen_size = img.size
         width, height = self._screen_size  # image.GetSize()
         self._scale_rate = float(target_height) / height
-        
+        temp_path = tempfile.mkstemp('.png')[1]
+
         try:
             out = img.resize((target_width, target_height), Image.ANTIALIAS)
-            out.save(image_path)
+            out.save(temp_path)
         except:
             Log.ex('ImageError', 'resize error')
             return
 
-        image = wx.Image(image_path, wx.BITMAP_TYPE_PNG)
+        image = wx.Image(temp_path, wx.BITMAP_TYPE_PNG)
         
         self.image.SetSize((target_width, target_height))
         self.mask_panel.SetSize((target_width, target_height))
@@ -376,6 +378,7 @@ class MainFrame(wx.Frame):
         self.mask_panel.Show()
         
         if self.cb_auto_refreash.IsChecked():
+            os.remove(temp_path)
             os.remove(image_path)
         
     def on_inspect_btn_click(self, event):
