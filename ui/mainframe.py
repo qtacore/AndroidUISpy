@@ -1272,16 +1272,18 @@ class TreeNodePopupMenu(wx.Menu):
             return qpath
         else:
             # 寻找最近公共祖先
-            hashcode_list = self._parent._control_manager.get_control(window_title, None, qpath)
-            controls = [self._parent._get_control_by_hashcode(self._parent.root, hashcode) for hashcode in hashcode_list]
-            ancestor = self._get_nearest_co_ancestor(controls)
-            ancestor_qpath = self._gen_qpath(ancestor)  # 获取祖先节点的QPath
-            print ancestor_qpath
-            depth = self._get_control_depth(ancestor, control)
-            ret, child_qpath = self._gen_qpath_by_attrs(control, window_title, ancestor_qpath)
-            if ret: return child_qpath
-            if depth != None and depth > 1: child_qpath += ' && MaxDepth=%d' % depth
-            return self._locate_qpath(window_title, None, child_qpath, item_data['Hashcode'])
+            return None
+            # Log.i('GetQPath', '寻找最近公共祖先')
+            # hashcode_list = self._parent._control_manager.get_control(window_title, None, qpath)
+            # controls = [self._parent._get_control_by_hashcode(self._parent.root, hashcode) for hashcode in hashcode_list]
+            # ancestor = self._get_nearest_co_ancestor(controls)
+            # ancestor_qpath = self._gen_qpath(ancestor)  # 获取祖先节点的QPath
+            # print ancestor_qpath
+            # depth = self._get_control_depth(ancestor, control)
+            # ret, child_qpath = self._gen_qpath_by_attrs(control, window_title, ancestor_qpath)
+            # if ret: return child_qpath
+            # if depth != None and depth > 1: child_qpath += ' && MaxDepth=%d' % depth
+            # return self._locate_qpath(window_title, None, child_qpath, item_data['Hashcode'])
     
     def _copy_to_clipboard(self, text):
         '''拷贝到剪切板
