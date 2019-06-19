@@ -20,6 +20,9 @@ import os
 import re
 import json
 import time
+
+from qt4a.androiddriver.util import ControlAmbiguousError
+
 from manager import BaseManager
 from activitymanager import ActivityManager
 from windowmanager import WindowManager
@@ -220,11 +223,14 @@ class ControlManager(BaseManager):
         driver = self._get_driver(process_name)
         try:
             return driver.get_control(window_title, parent, qpath._parsed_qpath, get_err_pos)
-        except RuntimeError, e:
-            if str(e).startswith('RepeatList:'):
-                repeat_list = str(e)[11:]
-                print repeat_list
-                repeat_list = json.loads(repeat_list)
+        except ControlAmbiguousError as e:
+            repeat_list = []
+            for line in e.args[0].split('\n')[1:]:
+                if not line:
+                    continue
+                pos = line.find('[')
+                pos2 = line.find(']', pos)
+                repeat_list.append(line[pos + 1: pos2])
                 return [int(item, 16) for item in repeat_list]
             else:
                 raise e
