@@ -159,7 +159,7 @@ class ActivityManager(BaseManager):
         result = self._device.adb.run_shell_cmd('dumpsys activity activities')
         result = result.replace('\r', '')
         # print result
-        p1 = re.compile(r'^  Stack #(\d+).*:$')
+        p1 = re.compile(r'^  Stack #(\d+).*:.*$')
         p2 = re.compile(r'^    Task id #(\d+)$')
         p3 = re.compile(r'^\s+\* TaskRecord\{(\w{6,8}) #(\d+)(.+)}$')
         p4 = re.compile(r'^\s+\* Hist #(\d+): ActivityRecord{(\w{5,8})(.+)}$')
