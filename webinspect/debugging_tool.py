@@ -25,6 +25,9 @@ def replace_url_func_wrap(func):
     '''
     def _func(*args, **kwargs):
         url = func(*args, **kwargs)
+        if not url:
+            return url
+        url = url.replace('?ws=127.0.0.1/', '?ws=/') # 避免最后生成的url错误
         return url.replace('chrome-devtools-frontend.appspot.com', 'chrome-devtools-frontend.netlify.com')
     return _func
     
@@ -49,7 +52,7 @@ class WebViewDebuggingTool(object):
     def get_service_name(self, process_name):
         pid = self._device.adb.get_pid(process_name)
         service_list = self.get_webview_debugging_server_list()
-        for service_name in ['webview_devtools_remote_%d' % pid, 'xweb_devtools_remote_%d' % pid]:
+        for service_name in ['xweb_devtools_remote_%d' % pid, 'webview_devtools_remote_%d' % pid]:
             if service_name in service_list:
                 return service_name
         return None
@@ -91,7 +94,7 @@ class WebViewDebuggingTool(object):
         '''
         sock = self.create_tunnel(process_name)
         if not sock: raise WebViewDebuggingNotEnabledError('WebView debugging in %s not enabled' % process_name)
-        sock.send(b'GET /json HTTP/1.1\r\n\r\n')
+        sock.send(b'GET /json HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n')
 
         body = b''
         time0 = time.time()
@@ -113,7 +116,8 @@ class WebViewDebuggingTool(object):
         else:
             raise RuntimeError('Recv json response timeout')
         sock.close()
-        print(body)
+        print(body.decode('utf8'))
+
         try:
             page_list = json.loads(body)
         except:
@@ -168,7 +172,7 @@ class WebViewDebuggingTool(object):
         
         if url == None and title == None:
             return multi_page_callback(page_list)
-        
+
         for page in page_list:
             if url and self._get_similar(page['url'], url) >= 0.05: return page.get('devtoolsFrontendUrl')
             if title and page['title'] == title: return page.get('devtoolsFrontendUrl')
