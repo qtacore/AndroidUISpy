@@ -251,6 +251,12 @@ class ControlManager(BaseManager):
         if not isinstance(result, list): return [result]
         return result
     
+    def enable_webview_debugging(self, process_name, hashcode):
+        '''开启WebView调试开关
+        '''
+        driver = self._get_driver(process_name)
+        driver.set_webview_debugging_enabled(hashcode, True)
+
     def open_webview_debug(self, process_name, hashcode, webview_type, multi_page_callback):
         '''开启WebView调试
         '''
@@ -276,8 +282,7 @@ class ControlManager(BaseManager):
             # 支持Chrome远程调试
             debugging_tool = WebViewDebuggingTool(self._device)
             if not debugging_tool.is_webview_debugging_opened(process_name):
-                driver = self._get_driver(process_name)
-                driver.set_webview_debugging_enabled(hashcode, True)
+                self.enable_webview_debugging(process_name, hashcode)
             # webview.eval_script([], (ChromeInspectWebSocket.base_script % 'false') + ';qt4a_web_inspect._inspect_mode=true;')
             
             debugging_url = debugging_tool.get_debugging_url(process_name, multi_page_callback, None)
