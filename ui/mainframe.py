@@ -301,8 +301,14 @@ class MainFrame(wx.Frame):
         t = threading.Thread(target=self._refresh_device_screenshot, args=(True,))
         t.setDaemon(True)
         t.start()
-        
+    
     def _set_image(self, image_path):
+        try:
+            return self.__set_image(image_path)
+        except:
+            Log.ex('Set image failed')
+
+    def __set_image(self, image_path):
         '''设置图片
         '''
         from PIL import Image
@@ -534,7 +540,7 @@ class MainFrame(wx.Frame):
         try:
             controls_dict = self._control_manager.get_control_tree()  # self.cb_activity.GetValue().strip(), index
             if not controls_dict: return
-        except RuntimeError, e:
+        except RuntimeError as e:
             msg = e.args[0]
             if not isinstance(msg, unicode):
                 msg = msg.decode('utf8')
@@ -1345,7 +1351,7 @@ class TreeNodePopupMenu(wx.Menu):
             response = dlg.GetValue()
             try:
                 self._parent.locate_by_qpath(response)
-            except ControlNotFoundError, e:
+            except ControlNotFoundError as e:
                 err_msg = e.message
                 if not isinstance(err_msg, unicode):
                     err_msg = err_msg.decode('utf8')
@@ -1388,7 +1394,17 @@ class TreeNodePopupMenu(wx.Menu):
             dlg.Destroy()
             return
         
+        item_data = self._parent.tree.GetItemData(self._select_node)
+        process_name = self._parent._tree_list[self._parent._tree_idx]['process_name']
+
         def on_multi_pages(page_list):
+            if not page_list:
+                self._parent._control_manager.enable_webview_debugging(process_name, item_data['Hashcode'])
+                dlg = wx.MessageDialog(self._parent, u'可能是Web内核状态导致，请重启应用后再次尝试！', u'未找到可调试页面', style=wx.OK | wx.ICON_INFORMATION)
+                result = dlg.ShowModal()
+                dlg.Destroy()
+                return None
+
             title_black_patterns = [r'^wx.+:INVISIBLE$']
             url_black_patterns = [] # r'https://servicewechat.com/.+page-frame.html'
             for i in range(len(page_list) - 1, -1, -1):
@@ -1414,8 +1430,6 @@ class TreeNodePopupMenu(wx.Menu):
             page = page_list[result]
             return page['devtoolsFrontendUrl']
 
-        item_data = self._parent.tree.GetItemData(self._select_node)
-        process_name = self._parent._tree_list[self._parent._tree_idx]['process_name']
         self._parent._chrome = self._parent._control_manager.open_webview_debug(process_name, item_data['Hashcode'], self._webview_type, on_multi_pages)  # self._parent.cb_activity.GetValue()
         if self._parent._chrome: self._parent.refresh_timer.Start(int(1000))
         
@@ -1432,7 +1446,7 @@ class TreeNodePopupMenu(wx.Menu):
         index += 1
         if index >= len(self._parent._tree_list):
             index = 0
-        print 'switch from %d to %d' % (self._parent._tree_idx, index)
+        print('switch from %d to %d' % (self._parent._tree_idx, index))
         self._parent.switch_control_tree(index)
         
 class CustomMessageDialog(wx.Dialog):
@@ -1592,12 +1606,12 @@ var tmp_result = %s;
             if input in self._cmd_list:
                 self._cmd_list.remove(input)
             self._cmd_list.insert(0, input)
-            print input
+
             try:
                 result = self.eval_script(input)
                 self._set_console_style(pos, -1, wx.TextAttr((0xbb, 0x00, 0x22)))
                 self.tc_console.WriteText('\n' + result)
-            except RuntimeError, e:
+            except RuntimeError as e:
                 err_msg = str(e)           
                 self._set_console_style(pos, -1, wx.TextAttr("red"))
                 self.tc_console.WriteText('\n' + err_msg)
