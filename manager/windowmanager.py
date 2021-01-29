@@ -171,7 +171,10 @@ class WindowManager(BaseManager):
     def _get_windows_data(self):
         '''获取windows数据并解析
         '''
-        result = self._device.adb.run_shell_cmd('dumpsys window windows')
+        cmdline = 'dumpsys window windows'
+        if self._device.adb.get_sdk_version() >= 29:
+            cmdline = 'dumpsys window visible-apps'
+        result = self._device.adb.run_shell_cmd(cmdline)
         result = result.replace('\r', '')
         # print result
         windows = []

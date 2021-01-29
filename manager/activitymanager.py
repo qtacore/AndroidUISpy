@@ -93,10 +93,11 @@ class Activity(object):
     def name(self):
         '''Activity名称
         '''
-        activity = self._attrs['realActivity']
-        pkg, activity = activity.split('/')
-        if activity[0] == '.':
-            activity = pkg + activity
+        activity = self._attrs.get('realActivity', 'None')
+        if '/' in activity:
+            pkg, activity = activity.split('/')
+            if activity[0] == '.':
+                activity = pkg + activity
         return activity
     
     @property
