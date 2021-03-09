@@ -19,6 +19,7 @@
 import json
 import time
 from utils.exceptions import WebViewDebuggingNotEnabledError
+from utils.logger import Log
 
 def replace_url_func_wrap(func):
     '''替换调试url
@@ -139,13 +140,16 @@ class WebViewDebuggingTool(object):
                 debugging_url = 'ws://localhost%s' % debugging_url[5:]
                 page['webSocketDebuggerUrl'] = debugging_url
 
+            Log.i("INFO", "page ------- %s" % page)
             if page['url'] == 'about:blank' or page['title'] == 'about:blank':
                 # 微信小程序中发现这里返回的url和title可能都不对
                 if not 'webSocketDebuggerUrl' in page:
                     raise RuntimeError('请关闭已打开的Web调试页面')
                 title, url = self.get_page_info(process_name, debugging_url)
-                if not url or url == 'about:blank':
-                    continue
+                # if not url or url == 'about:blank':
+                # if not url:
+                #     continue
+                result.append(page)
                 page['url'] = url
                 page['title'] = title
             else:
