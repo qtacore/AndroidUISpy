@@ -278,7 +278,6 @@ class ControlManager(BaseManager):
                     driver.call_static_method('org.xwalk.core.internal.XWalkPreferencesInternal', 'setValue', hashcode, '', 'remote-debugging', True)
                 except Exception as e:
                     Log.ex("EXCEPTION", "Driver call method 'org.xwalk.core.internal.XWalkPreferencesInternal' error.")
-                else:
                     driver.call_static_method('org.xwalk.core.internal.XWalkPreferencesBridge', 'setValue', hashcode, '',
                                               'remote-debugging', True)
 
