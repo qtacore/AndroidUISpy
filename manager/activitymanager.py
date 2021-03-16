@@ -93,7 +93,10 @@ class Activity(object):
     def name(self):
         '''Activity名称
         '''
-        activity = self._attrs['realActivity']
+        try:
+            activity = self._attrs['realActivity']
+        except KeyError:
+            activity = self._attrs['mActivityComponent']
         pkg, activity = activity.split('/')
         if activity[0] == '.':
             activity = pkg + activity
@@ -184,7 +187,7 @@ class ActivityManager(BaseManager):
                     stack.add_task(task)
                 else:
                     ret = p1.match(line)
-                    if ret: 
+                    if ret:
                         stack_id = int(ret.group(1)) if not isinstance(ret, bool) else 0
                         stack = TaskStack(stack_id)
                         stacks.append(stack)
@@ -227,7 +230,7 @@ class ActivityManager(BaseManager):
                     pos = item.find('=')
                     key = item[:pos]
                     val = item[pos + 1:]
-                    if key in ['processName', 'packageName', 'realActivity', 'state']:
+                    if key in ['processName', 'packageName', 'realActivity', 'state', 'mActivityComponent']:
                         hist[key] = val
                 if 'waitingVisible' in line:
                     hist = None
