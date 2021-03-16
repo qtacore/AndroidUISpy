@@ -470,7 +470,7 @@ class MainFrame(wx.Frame):
             return
 
         if not os.path.exists(path):
-            Log.w('Scrrenshot', 'file not exist')
+            Log.w('Screenshot', 'file not exist')
        
         run_in_main_thread(self._set_image)(path)
     

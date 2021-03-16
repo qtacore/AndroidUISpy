@@ -148,6 +148,7 @@ class WebViewDebuggingTool(object):
                 #     continue
                 page['url'] = url
                 page['title'] = title
+                # result.append(page)
             else:
                 title, url = self.get_page_info(process_name, debugging_url)
                 if title == '' and url == '':

@@ -134,7 +134,6 @@ class ControlManager(BaseManager):
         self._window_manager.update()
         self._activity_manager.update()
         current_window = self._window_manager.get_current_window()
-
         if current_window == None:
             # 获取当前Activity
             current_activity = self._device._send_command('GetCurrentActivity')
@@ -160,7 +159,7 @@ class ControlManager(BaseManager):
                 return
             result.update(control_tree)  # 相同窗口名的窗口必然在同一进程中，所以不会冲突
             process_list.append(process_name)
-                    
+
         current_process = self._get_window_process(current_window)
 
         if current_process == None:
@@ -328,6 +327,8 @@ class WebView(object):
 
         for tp in result:
             if tp.startswith('org.xwalk.core.internal.XWalkContent$'):
+                return EnumWebViewType.XWalkWebView
+            elif tp in ['org.xwalk.core.internal.XWalkViewBridge']:
                 return EnumWebViewType.XWalkWebView
             elif tp in ['com.tencent.smtt.webkit.WebView',
                       'com.tencent.tbs.core.webkit.WebView',
