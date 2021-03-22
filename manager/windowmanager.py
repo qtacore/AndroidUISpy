@@ -171,9 +171,14 @@ class WindowManager(BaseManager):
     def _get_windows_data(self):
         '''获取windows数据并解析
         '''
+        window_name = None
         result = self._device.adb.run_shell_cmd('dumpsys window windows')
         result = result.replace('\r', '')
-        # print result
+        current_activity = self._device.adb.run_shell_cmd("dumpsys activity a . | grep -E 'mResumedActivity' | cut -d ' ' -f 8")
+        if '/' in current_activity:
+            package_name, activity_name = current_activity.split('/')
+            window_name = package_name + '/' + package_name + activity_name
+        # print  result
         windows = []
         window = None
         p1 = re.compile(r'^  Window #(\d+) Window{(\w{6,9}) (.*)}:$')
@@ -189,18 +194,12 @@ class WindowManager(BaseManager):
                     items = title.split(' ')
                     if 'u0' == items[0]: title = items[1]
                     else: title = items[0]
+                if title == window_name:
+                    self._current_window = Window(self, int(ret.group(1)), ret.group(2), title)
                 window = Window(self, int(ret.group(1)), ret.group(2), title)  # 此逻辑可能有bug
                 windows.append(window)
             elif 'mObscuringWindow' in line:
                 if 'mCurrentFocus' in line:
-                    ret = p2.search(line)
-                    if ret:
-                        title = ret.group(3)
-                        self._current_window = Window(self, 0, ret.group(1), title)
-                    else:
-                        Log.w("WindowManager", line)
-                        self._current_window = None
-                else:
                     ret = p2.search(line)
                     if ret:
                         title = ret.group(3)
