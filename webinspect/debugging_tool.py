@@ -144,10 +144,11 @@ class WebViewDebuggingTool(object):
                 if not 'webSocketDebuggerUrl' in page:
                     raise RuntimeError('请关闭已打开的Web调试页面')
                 title, url = self.get_page_info(process_name, debugging_url)
-                if not url or url == 'about:blank':
-                    continue
+                # if not url or url == 'about:blank':
+                #     continue
                 page['url'] = url
                 page['title'] = title
+                # result.append(page)
             else:
                 title, url = self.get_page_info(process_name, debugging_url)
                 if title == '' and url == '':
