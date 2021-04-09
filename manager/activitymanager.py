@@ -25,51 +25,51 @@ class TaskStack(object):
     def __init__(self, _id):
         self._id = _id
         self._tasks = []
-    
+
     def __str__(self):
         result = 'TaskStack #%d\n' % self._id
         for task in self._tasks:
             result += '%s\n' % task
         return result
-    
+
     @property
     def task_list(self):
         return self._tasks
-    
+
     def add_task(self, task):
         self._tasks.append(task)
-        
+
 class Task(object):
     '''任务
     '''
     def __init__(self, _id):
         self._id = _id
         self._task_record = None
-        self._activities = [] 
-    
+        self._activities = []
+
     def __str__(self):
         result = '<Task at 0x%X Record=%s>\n' % (id(self), self._task_record)
         for activity in self._activities:
             result += '%s\n' % activity
         return result
-    
+
     @property
     def task_record(self):
         return self._task_record
-    
+
     @task_record.setter
     def task_record(self, record):
         self._task_record = record
-    
+
     @property
     def activity_list(self):
         return self._activities
-    
+
     def add_activity(self, activity):
         '''
         '''
         self._activities.append(activity)
-        
+
 class TaskRecord(object):
     '''
     '''
@@ -77,10 +77,10 @@ class TaskRecord(object):
         self._hashcode = hashcode
         self._task_id = task_id
         self._package_name = package_name
-    
+
     def __str__(self):
         return '<TaskRecord at 0x%X hashcode=0x%s id=%d package_name=%s>' % (id(self), self._hashcode, self._task_id, self._package_name)
-    
+
 class Activity(object):
     '''
     '''
@@ -88,7 +88,7 @@ class Activity(object):
         self._id = _id
         self._activity_record = activity_record
         self._attrs = {}
-    
+
     @property
     def name(self):
         '''Activity名称
@@ -101,51 +101,51 @@ class Activity(object):
         if activity[0] == '.':
             activity = pkg + activity
         return activity
-    
+
     @property
     def package_name(self):
         '''所在包名
         '''
         return self._attrs['packageName']
-    
+
     @property
     def process_name(self):
         '''所在进程名
         '''
         return self._attrs['processName']
-    
+
     def __setitem__(self, key, val):
         self._attrs[key] = val
-        
+
     def __str__(self):
         result = '<Activity at 0x%X id=%d activity_record=%s ' % (id(self), self._id, self._activity_record)
         for attr in self._attrs:
             result += '%s=%s ' % (attr, self._attrs[attr])
         result += '>'
         return result
-    
+
 class ActivityRecord(object):
     '''Activity记录
-    '''  
+    '''
     def __init__(self, hashcode, task_id, activity):
         self._hashcode = hashcode
         self._task_id = task_id
         self._activity = activity
-        
-    
+
+
 class ActivityManager(BaseManager):
     '''Activity管理
     '''
-    
+
     def __init__(self, device):
         self._device = device
         self._activities_data = None
-    
+
     def update(self):
         '''
         '''
         self._activities_data = None
-        
+
     def get_activity_list(self):
         if not self._activities_data:
             self._activities_data = self._get_activities_data()
@@ -155,7 +155,7 @@ class ActivityManager(BaseManager):
                 for activity in task.activity_list:
                     result.append(activity)
         return result
-    
+
     def _get_activities_data(self):
         '''获取并解析activity数据
         '''
@@ -172,7 +172,7 @@ class ActivityManager(BaseManager):
         stacks = []
 
         for line in result.split('\n')[1:]:
-            if not line: 
+            if not line:
                 task = None
                 continue
             # print repr(line)
@@ -232,9 +232,10 @@ class ActivityManager(BaseManager):
                     val = item[pos + 1:]
                     if key in ['processName', 'packageName', 'realActivity', 'state', 'mActivityComponent']:
                         hist[key] = val
-                if 'waitingVisible' in line:
+                if 'waitingVisible' in line or 'mLastReportedMultiWindowMode' in line:
                     hist = None
         return stacks
-     
+
+
 if __name__ == '__main__':
     pass

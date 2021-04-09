@@ -175,10 +175,10 @@ class WindowManager(BaseManager):
         result = result.replace('\r', '')
         # print result
         windows = []
-        window = None
+        window = {}
         p1 = re.compile(r'^  Window #(\d+) Window{(\w{6,9}) (.*)}:$')
-        # p2 = re.compile(r'Window{(\w{6,9}) (u0 ){0,1}(\S+).*}')
-        p2 =re.compile(r'Window{(\w+) (u0 ){0,1}(\S+).*}')
+        p2 = re.compile(r'Window{(\w{6,9}) (u0 ){0,1}(\S+).*}')
+        # p2 =re.compile(r'Window{(\w+) (u0 ){0,1}(\S+).*}')
         p3 = re.compile(r'mShownFrame=\[([-\d\.]+),([-\d\.]+)\]\[([-\d\.]+),([-\d\.]+)\]')
         for line in result.split('\n')[1:]:
             # print repr(line)
@@ -191,23 +191,28 @@ class WindowManager(BaseManager):
                     else: title = items[0]
                 window = Window(self, int(ret.group(1)), ret.group(2), title)  # 此逻辑可能有bug
                 windows.append(window)
-            elif 'mObscuringWindow' in line:
-                if 'mCurrentFocus' in line:
-                    ret = p2.search(line)
-                    if ret:
-                        title = ret.group(3)
-                        self._current_window = Window(self, 0, ret.group(1), title)
-                    else:
-                        Log.w("WindowManager", line)
-                        self._current_window = None
+            elif 'mHoldScreenWindow' in line:
+                ret = p2.search(line)
+                if ret:
+                    title = ret.group(3)
+                    self._current_window = Window(self, 0, ret.group(1), title)
                 else:
-                    ret = p2.search(line)
-                    if ret:
-                        title = ret.group(3)
-                        self._current_window = Window(self, 0, ret.group(1), title)
-                    else:
-                        Log.w("WindowManager", line)
-                        self._current_window = None
+                    Log.w("WindowManager", line)
+            elif 'mObscuringWindow' in line:
+                ret = p2.search(line)
+                if ret:
+                    title = ret.group(3)
+                    self._current_window = Window(self, 0, ret.group(1), title)
+                else:
+                    Log.w("WindowManager", line)
+            elif 'mCurrentFocus' in line:
+                ret = p2.search(line)
+                if ret:
+                    title = ret.group(3)
+                    self._current_window = Window(self, 0, ret.group(1), title)
+                else:
+                    Log.w("WindowManager", line)
+                    self._current_window = None
             elif 'mInputMethodTarget' in line:
                 ret = p2.search(line)
                 self._current_input_target = Window(self, 0, ret.group(1), ret.group(2) if ret.group(2) and len(ret.group(2)) > 5 else ret.group(3))
