@@ -19,13 +19,14 @@
 import wx
 from ui import mainframe
 
+
 # reload(sys)
 # sys.setdefaultencoding('utf8')
 
 class AndroidUISpyApp(wx.App):
     '''
     '''
-    
+
     def OnInit(self):
         self.main = mainframe.create(None)
         self.main.Center()
@@ -42,4 +43,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
