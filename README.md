@@ -21,11 +21,22 @@
 
 ## HOW TO DEBUG
 
-`python ui/app.py`
+```bash
+$ python ui/app.py
+```
 
 ## HOW TO BUILD
 
-`python build.py versions(2.5.1.0)`
+```bash
+$ python build.py ${versions}(2.5.1.0)
+```
+
+## HOW TO RELEASE
+
+```bash
+$ git tag ${version}
+$ git push origin ${version}
+```
 
 ## QUESTIONS
 
