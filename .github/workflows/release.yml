@@ -50,6 +50,7 @@ jobs:
         run: |
           python build.py ${{ github.ref }}
           cd dist
+          rm -r AndroidUISpy.app || echo
           python -m zipfile -c "../AndroidUISpy.zip" .
           python -c "print('::set-output name=arch::%s-%s' % (__import__('sys').platform, __import__('platform').machine().lower()))"
       - name: Upload Release Asset
