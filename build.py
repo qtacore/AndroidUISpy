@@ -44,6 +44,10 @@ def main(version):
     
     os.system(cmdline)
 
+    if sys.platform == 'darwin':
+        os.system('diutil create /tmp/tmp.dmg -ov -volname "AndroidUISpy" -fs HFS+ -srcfolder "dist/AndroidUISpy.app"')
+        os.system('hdiutil convert /tmp/tmp.dmg -format UDZO -o dist/AndroidUISpy.dmg')
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print >> sys.stderr, 'usage: python build.py versions'
