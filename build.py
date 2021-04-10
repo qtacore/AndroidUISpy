@@ -19,7 +19,10 @@
 import os
 import sys
 
+import qt4a
+
 def main(version):
+    qt4a_tools_path = qt4a.__path__[0] + '/androiddriver/tools'
     if '/' in version:
         # handle refs/tags/x.x.x.x
         version = version.split('/')[-1]
@@ -41,9 +44,9 @@ def main(version):
                            }
         with open(version_file_path, 'wb') as fp:
             fp.write(text)
-        cmdline = 'pyinstaller -F -w ui/app.py -n AndroidUISpy_v%s -i res/androiduispy.ico --add-data=.env/Lib/site-packages/qt4a/androiddriver/tools;qt4a/androiddriver/tools --version-file %s' % (version, version_file_path)
+        cmdline = 'pyinstaller -F -w ui/app.py -n AndroidUISpy_v%s -i res/androiduispy.ico --add-data=%s;qt4a/androiddriver/tools --version-file %s' % (version, qt4a_tools_path, version_file_path)
     else:
-        cmdline = 'pyinstaller -F -w ui/app.py -n AndroidUISpy -i res/androiduispy.icns --add-data=.env/Lib/python2.7/site-packages/qt4a/androiddriver/tools:qt4a/androiddriver/tools'
+        cmdline = 'pyinstaller -F -w ui/app.py -n AndroidUISpy -i res/androiduispy.icns --add-data=%s:qt4a/androiddriver/tools' % qt4a_tools_path
     
     os.system(cmdline)
 
