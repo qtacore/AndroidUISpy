@@ -20,6 +20,9 @@ import os
 import sys
 
 def main(version):
+    if '/' in version:
+        # handle refs/tags/x.x.x.x
+        version = version.split('/')[-1]
     version_items = version.split('.')
     for i in range(len(version_items)):
         version_items[i] = int(version_items[i])
