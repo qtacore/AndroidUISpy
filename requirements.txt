@@ -1,4 +1,4 @@
 wxPython==4.0.3
-PyInstaller==3.*
+PyInstaller==3.6
 qt4a
 pywin32; sys_platform == 'win32'
