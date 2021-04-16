@@ -452,7 +452,7 @@ class MainFrame(wx.Frame):
         if use_cmd:
             self._device.adb.run_shell_cmd('screencap %s' % tmp_path, True)
             self._device.adb.run_shell_cmd('chmod 444 %s' % tmp_path, True)
-            self._device.pull_file(tmp_path, path)
+            self._device.adb.pull_file(tmp_path, path)
         else:
             self._device.take_screen_shot(path, 10)
         
@@ -462,7 +462,9 @@ class MainFrame(wx.Frame):
         path = os.path.join(os.path.abspath(os.curdir), 'screen.png')
         # Log.d('Screenshot', path)
         tmp_path = '/data/local/tmp/screen.png'
-        
+
+        if self._device.adb.get_sdk_version() >= 29:
+            use_cmd = True
         try:
             self._take_screen_shot(tmp_path, path, use_cmd)
         except:
