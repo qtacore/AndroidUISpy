@@ -30,19 +30,19 @@ def main(version):
     for i in range(len(version_items)):
         version_items[i] = int(version_items[i])
         
-    with open('version.py', 'wb') as fp:
+    with open('version.py', 'w') as fp:
         fp.write('version_info=u"%s"' % version)
             
     if sys.platform == 'win32':
         version_file_path = 'version_file.txt'
-        with open(os.path.join('res', 'file_version_info.txt'), 'rb') as fp:
+        with open(os.path.join('res', 'file_version_info.txt'), 'r') as fp:
             text = fp.read()
             text = text % {'main_ver':  version_items[0],
                            'sub_ver':   version_items[1],
                            'min_ver':   version_items[2],
                            'build_num': version_items[3] if len(version_items) > 3 else 0
                            }
-        with open(version_file_path, 'wb') as fp:
+        with open(version_file_path, 'w') as fp:
             fp.write(text)
         cmdline = 'pyinstaller -F -w ui/app.py -n AndroidUISpy_v%s -i res/androiduispy.ico --add-data=%s;qt4a/androiddriver/tools --version-file %s' % (version, qt4a_tools_path, version_file_path)
     else:
@@ -59,4 +59,3 @@ if __name__ == '__main__':
         print >> sys.stderr, 'usage: python build.py versions'
         exit()
     main(sys.argv[1])
-    
