@@ -129,7 +129,8 @@ class WebViewDebuggingTool(object):
         else:
             raise RuntimeError("Recv json response timeout")
         sock.close()
-        print(body.decode("utf8"))
+        # print(body.decode("utf8"))
+        print(body)
 
         try:
             page_list = json.loads(body)
