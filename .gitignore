@@ -1,0 +1,13 @@
+.env/*
+build/*
+dist/*
+qt4a/*
+version.py
+version_file.txt
+*.spec
+*.pyc
+*.log
+*.png
+.DS_Store
+.vscode
+.github
