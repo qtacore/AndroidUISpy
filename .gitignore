@@ -8,3 +8,6 @@ version_file.txt
 *.pyc
 *.log
 *.png
+.DS_Store
+.vscode
+.github

@@ -91,7 +91,7 @@ class MainFrame(wx.Frame):
         _, screen_height = wx.DisplaySize()
         if screen_height >= 800:
             global default_size
-            default_size[1] = ((screen_height - 60) / 100) * 100
+            default_size[1] = ((screen_height - 160) / 100) * 100
         wx.Frame.__init__(
             self,
             id=wx.ID_ANY,
@@ -235,14 +235,14 @@ class MainFrame(wx.Frame):
             self.window1, pos=(10, 100), size=(960, self._main_height)
         )
         self._tree_list = []  # 可能会存在多棵控件树
+        self._tree_idx = -1
+        
         # self.tree = wx.TreeCtrl(self.main_panel, id=wx.ID_ANY, pos=(5, 0), size=(600, self._main_height - 20))
         # self.tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_node_click)
         # self.tree.Bind(wx.EVT_COMMAND_RIGHT_CLICK, self.on_tree_right_click)  #  EVT_RIGHT_UP 为什么会变成右键双击
         # self.tree.Bind(wx.EVT_MOUSE_EVENTS, self.on_tree_mouse_event)
 
         # self.tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_node_right_click)
-
-        self._tree_idx = -1
 
         self.image = wx.StaticBitmap(
             parent=self.main_panel,
@@ -261,88 +261,10 @@ class MainFrame(wx.Frame):
             self.mask_panel.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
 
         # -------------------------------- 下部区域 ------------------------------------
-
-        box2 = wx.StaticBox(
-            self.window1,
-            wx.ID_ANY,
-            u"控件属性",
-            pos=(10, default_size[1] - 230 + offset),
-            size=(960, 155 + offset),
-        )
-        self.lable6 = wx.StaticText(
-            box2, wx.ID_ANY, u"ID", pos=(10, 30 - offset), size=wx.DefaultSize
-        )
-        self.tc_id = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(50, 30 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-
-        self.lable7 = wx.StaticText(
-            box2, wx.ID_ANY, u"Type", pos=(10, 60 - offset), size=wx.DefaultSize
-        )
-        self.tc_type = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(50, 60 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.lable8 = wx.StaticText(
-            box2, wx.ID_ANY, u"Visible", pos=(10, 90 - offset), size=wx.DefaultSize
-        )
-        self.tc_visible = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(50, 90 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.lable9 = wx.StaticText(
-            box2, wx.ID_ANY, u"Text", pos=(10, 120 - offset), size=wx.DefaultSize
-        )
-        self.tc_text = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(50, 120 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.tc_text.Enable(False)
-        self.tc_text.Bind(wx.EVT_TEXT, self.on_node_text_changed)
-
-        self.lable10 = wx.StaticText(
-            box2, wx.ID_ANY, u"HashCode", pos=(250, 30 - offset), size=wx.DefaultSize
-        )
-        self.tc_hashcode = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(340, 30 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.lable11 = wx.StaticText(
-            box2, wx.ID_ANY, u"Rect", pos=(250, 60 - offset), size=wx.DefaultSize
-        )
-        self.tc_rect = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(340, 60 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.lable12 = wx.StaticText(
-            box2, wx.ID_ANY, u"Enabled", pos=(250, 90 - offset), size=wx.DefaultSize
-        )
-        self.tc_enable = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(340, 90 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.btn_set_text = wx.Button(
-            box2,
-            wx.ID_ANY,
-            label=u"修改文本",
-            pos=(230, 120 - offset),
-            size=(80, 24),
-            style=0,
-        )
-        self.btn_set_text.Enable(False)
-        self.btn_set_text.Bind(wx.EVT_BUTTON, self.on_set_text_btn_click)
-        self.cb_show_hex = wx.CheckBox(
-            box2, wx.ID_ANY, u" 显示16进制", (330, 122 - offset), wx.DefaultSize
-        )
-        self.cb_show_hex.Bind(wx.EVT_CHECKBOX, self.on_show_hex_string_checked)
-
-        self.lable13 = wx.StaticText(
-            box2, wx.ID_ANY, u"ProcessName", pos=(540, 30 - offset), size=wx.DefaultSize
-        )
-        self.tc_process_name = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(640, 30 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-        self.lable14 = wx.StaticText(
-            box2, wx.ID_ANY, u"Description", pos=(540, 60 - offset), size=wx.DefaultSize
-        )
-        self.tc_desc = wx.TextCtrl(
-            box2, wx.ID_ANY, pos=(640, 60 - offset), size=(160, 24), style=wx.TE_LEFT
-        )
-
+        self._build_main_property(offset)
+        
+        self._build_flutter_property(offset)    # flutter模式
+        
         # wx.adv.HyperlinkCtrl(box2, wx.ID_ANY, pos=(840, 110), size=(160, 24), label=u'查看帮助文档', url=url)
         # wx.adv.HyperlinkCtrl(box2, wx.ID_ANY, pos=(840, 130), size=(160, 24), label=u'问题反馈请点击', url=url)
 
@@ -368,6 +290,159 @@ class MainFrame(wx.Frame):
         self._mouse_move_enabled = False
         self._enable_inspect = False
         self._chrome = None
+        
+        # flutter相关
+        self._flutter_tree = None
+        self._flutter_root = None
+        self._in_flutter_mode = False
+        self._flutter_debug_started = False
+        
+    def _build_main_property(self, offset):
+        self.main_property_box = wx.StaticBox(
+            self.window1,
+            wx.ID_ANY,
+            u"Android控件属性",
+            pos=(10, default_size[1] - 230 + offset),
+            size=(960, 155 + offset),
+        )
+        self.flutter_lable6 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"ID", pos=(10, 30 - offset), size=wx.DefaultSize
+        )
+        self.tc_id = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(50, 30 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+
+        self.flutter_lable7 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Type", pos=(10, 60 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_type = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(50, 60 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.lable8 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Visible", pos=(10, 90 - offset), size=wx.DefaultSize
+        )
+        self.tc_visible = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(50, 90 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.flutter_lable9 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Text", pos=(10, 120 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_text = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(50, 120 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.flutter_tc_text.Enable(False)
+        self.flutter_tc_text.Bind(wx.EVT_TEXT, self.on_node_text_changed)
+
+        self.flutter_lable10 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"HashCode", pos=(250, 30 - offset), size=wx.DefaultSize
+        )
+        self.tc_hashcode = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(340, 30 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.flutter_lable11 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Rect", pos=(250, 60 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_rect = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(340, 60 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.lable12 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Enabled", pos=(250, 90 - offset), size=wx.DefaultSize
+        )
+        self.tc_enable = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(340, 90 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.btn_set_text = wx.Button(
+            self.main_property_box,
+            wx.ID_ANY,
+            label=u"修改文本",
+            pos=(230, 120 - offset),
+            size=(80, 24),
+            style=0,
+        )
+        self.btn_set_text.Enable(False)
+        self.btn_set_text.Bind(wx.EVT_BUTTON, self.on_set_text_btn_click)
+        self.cb_show_hex = wx.CheckBox(
+            self.main_property_box, wx.ID_ANY, u" 显示16进制", (330, 122 - offset), wx.DefaultSize
+        )
+        self.cb_show_hex.Bind(wx.EVT_CHECKBOX, self.on_show_hex_string_checked)
+
+        self.lable13 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"ProcessName", pos=(540, 30 - offset), size=wx.DefaultSize
+        )
+        self.tc_process_name = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(640, 30 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        self.lable14 = wx.StaticText(
+            self.main_property_box, wx.ID_ANY, u"Description", pos=(540, 60 - offset), size=wx.DefaultSize
+        )
+        self.tc_desc = wx.TextCtrl(
+            self.main_property_box, wx.ID_ANY, pos=(640, 60 - offset), size=(160, 24), style=wx.TE_LEFT
+        )
+        
+    def _build_flutter_property(self, offset):
+        self.flutter_property_box = wx.StaticBox(
+            self.window1,
+            wx.ID_ANY,
+            u"Flutter控件属性",
+            pos=(10, default_size[1] - 230 + offset),
+            size=(960, 130 + offset),
+        )
+        self.flutter_property_box.Hide()
+        
+        self.flutter_lable6 = wx.StaticText(
+            self.flutter_property_box, wx.ID_ANY, u"Key", pos=(10, 30 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_key = wx.TextCtrl(
+            self.flutter_property_box, wx.ID_ANY, pos=(50, 30 - offset), size=(300, 24), style=wx.TE_LEFT
+        )
+
+        self.flutter_lable7 = wx.StaticText(
+            self.flutter_property_box, wx.ID_ANY, u"Type", pos=(400, 30 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_type = wx.TextCtrl(
+            self.flutter_property_box, wx.ID_ANY, pos=(440, 30 - offset), size=(300, 24), style=wx.TE_LEFT
+        )
+        
+        self.flutter_lable10 = wx.StaticText(
+            self.flutter_property_box, wx.ID_ANY, u"Hint", pos=(10, 60 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_hint = wx.TextCtrl(
+            self.flutter_property_box, wx.ID_ANY, pos=(50, 60 - offset), size=(300, 24), style=wx.TE_LEFT
+        )
+        
+        self.flutter_lable11 = wx.StaticText(
+            self.flutter_property_box, wx.ID_ANY, u"Rect", pos=(400, 60 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_rect = wx.TextCtrl(
+            self.flutter_property_box, wx.ID_ANY, pos=(440, 60 - offset), size=(300, 24), style=wx.TE_LEFT
+        )    
+        
+        self.flutter_lable9 = wx.StaticText(
+            self.flutter_property_box, wx.ID_ANY, u"Text", pos=(10, 90 - offset), size=wx.DefaultSize
+        )
+        self.flutter_tc_text = wx.TextCtrl(
+            self.flutter_property_box, wx.ID_ANY, pos=(50, 90 - offset), size=(300, 24), style=wx.TE_LEFT
+        )    
+        self.flutter_tc_text.Enable(False)
+        self.flutter_tc_text.Bind(wx.EVT_TEXT, self.on_node_text_changed)
+        
+    def _change_to_android_tree(self):        
+        self.flutter_property_box.Hide()
+        self.main_property_box.Show()
+        
+        self._flutter_tree.Hide()
+        self._tree_list[self._tree_idx]["tree"].Show()
+        
+        self._in_flutter_mode = False
+        
+    def _change_to_flutter_tree(self):
+        self.main_property_box.Hide()
+        self.flutter_property_box.Show()
+        
+        self._tree_list[self._tree_idx]["tree"].Hide()
+        self._flutter_tree.Show()
+        
+        self._in_flutter_mode = True
 
     def on_device_inserted(self, device_name):
         """新设备插入回调"""
@@ -395,11 +470,15 @@ class MainFrame(wx.Frame):
     @property
     def tree(self):
         """当前操作的控件树"""
+        if self._in_flutter_mode:
+            return self._flutter_tree
         return self._tree_list[self._tree_idx]["tree"]
 
     @property
     def root(self):
         """当前操作的控件树的根"""
+        if self._in_flutter_mode:
+            return self._flutter_root
         return self._tree_list[self._tree_idx]["root"]
 
     def on_auto_fresh_checked(self, event):
@@ -443,7 +522,7 @@ class MainFrame(wx.Frame):
         """ """
         window_title = self.cb_activity.GetValue()
         hashcode = int(self.tc_hashcode.GetValue(), 16)
-        text = self.tc_text.GetValue()
+        text = self.flutter_tc_text.GetValue()
         self._control_manager.set_control_text(window_title, hashcode, text)
         self.statusbar.SetStatusText(u"设置控件文本成功", 0)
         time.sleep(0.5)
@@ -556,6 +635,8 @@ class MainFrame(wx.Frame):
             if self._device_host:
                 device_id = self._device_host + ":" + device_id
             self._device = DeviceDriver(ADB.open_device(device_id))
+            self._device.adb.start_logcat(clear=False)
+            
             self.statusbar.SetStatusText(u"当前设备：%s" % self._select_device, 0)
             for tree in self._tree_list:
                 # 先删除之前创建的控件树
@@ -641,6 +722,38 @@ class MainFrame(wx.Frame):
 
     def _build_control_trees(self, controls_dict):
         """构建控件树"""
+        if self._in_flutter_mode:
+            self._build_flutter_control_tree(controls_dict)
+        else:
+            self._build_android_control_tree(controls_dict)
+    
+    def _build_flutter_control_tree(self, controls_dict):
+        self._flutter_root = None
+        if self._flutter_tree:
+            self._flutter_tree.DeleteAllItems()
+            self._flutter_tree.Destroy()
+        
+        control = controls_dict['children'][0]
+        self._flutter_tree = wx.TreeCtrl(
+            self.main_panel,
+            id=wx.ID_ANY,
+            pos=(5, 0),
+            size=(600, self._main_height - 20),
+        )
+        
+        self._flutter_root = self._flutter_tree.AddRoot(
+            control['description'], data=control
+        )
+        
+        for child in control["children"]:
+            self._add_flutter_child('', self._flutter_tree, self._flutter_root, child)
+        self._flutter_tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_flutter_tree_node_click)
+        self._flutter_tree.Bind(wx.EVT_MOUSE_EVENTS, self.on_tree_mouse_event)
+        self._flutter_tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_node_right_click)
+        
+        self._change_to_flutter_tree()
+    
+    def _build_android_control_tree(self, controls_dict):
         for tree in self._tree_list:
             # 先删除之前创建的控件树
             tree["root"] = None
@@ -705,9 +818,12 @@ class MainFrame(wx.Frame):
         self.statusbar.SetStatusText(u"正在获取控件树……", 0)
         time0 = time.time()
         try:
-            controls_dict = (
-                self._control_manager.get_control_tree()
-            )  # self.cb_activity.GetValue().strip(), index
+            if self._in_flutter_mode:
+                controls_dict = self._control_manager.get_flutter_control_tree()
+            else:
+                controls_dict = (
+                    self._control_manager.get_control_tree()
+                )  # self.cb_activity.GetValue().strip(), index
             if not controls_dict:
                 return
         except RuntimeError as e:
@@ -725,10 +841,14 @@ class MainFrame(wx.Frame):
 
         used_time = time.time() - time0
         self.statusbar.SetStatusText(u"获取控件树完成，耗时：%s S" % used_time, 0)
-        msg = ""
-        for key in controls_dict:
-            msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
-        Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
+
+        if self._in_flutter_mode:
+            Log.i("MainFrame", "get flutter control tree success")
+        else:
+            msg = ""
+            for key in controls_dict:
+                msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
+            Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
         self._show_control_tree(controls_dict)
 
     @run_in_main_thread
@@ -771,13 +891,20 @@ class MainFrame(wx.Frame):
         if item_data == None:
             return []
 
-        rect = item_data["Rect"]
-        if x < rect["Left"] or x >= rect["Left"] + rect["Width"]:
-            return []
-        if y < rect["Top"] or y >= rect["Top"] + rect["Height"]:
-            return []
-        if not item_data["Visible"]:
-            return []
+        if self._in_flutter_mode:
+            rect = item_data["rect"]
+            if x < rect["x"] or x >= rect["x"] + rect["width"]:
+                return []
+            if y < rect["y"] or y >= rect["y"] + rect["height"]:
+                return []
+        else:
+            rect = item_data["Rect"]
+            if x < rect["Left"] or x >= rect["Left"] + rect["Width"]:
+                return []
+            if y < rect["Top"] or y >= rect["Top"] + rect["Height"]:
+                return []
+            if not item_data["Visible"]:
+                return []
 
         if tree.GetChildrenCount(parent) == 0:
             return [parent]
@@ -810,10 +937,30 @@ class MainFrame(wx.Frame):
         if not self._scale_rate:
             return
         item_data = self.tree.GetItemData(control)
-        rect = item_data["Rect"]
-        p1 = rect["Left"] * self._scale_rate, rect["Top"] * self._scale_rate
-        p2 = (rect["Left"] + rect["Width"]) * self._scale_rate, (
-            rect["Top"] + rect["Height"]
+        
+        if self._in_flutter_mode:
+            rect = item_data["rect"]
+            p1 = rect["x"] * self._scale_rate, rect["y"] * self._scale_rate
+            p2 = (rect["x"] + rect["width"]) * self._scale_rate, (rect["y"] + rect["height"]) * self._scale_rate
+        else:
+            rect = item_data["Rect"]
+            p1 = rect["Left"] * self._scale_rate, rect["Top"] * self._scale_rate
+            p2 = (rect["Left"] + rect["Width"]) * self._scale_rate, (rect["Top"] + rect["Height"]) * self._scale_rate
+        self.mask_panel.draw_rectangle(p1, p2)
+        
+    def _draw_mask(self, control):
+        """绘制高亮区域"""
+        if not self._scale_rate:
+            return
+        
+        item_data = self.tree.GetItemData(control)
+        if 'rect' not in item_data:
+            return
+        
+        rect = item_data["rect"]
+        p1 = rect["x"] * self._scale_rate, rect["y"] * self._scale_rate
+        p2 = (rect["x"] + rect["width"]) * self._scale_rate, (
+            rect["y"] + rect["height"]
         ) * self._scale_rate
         self.mask_panel.draw_rectangle(p1, p2)
 
@@ -904,7 +1051,55 @@ class MainFrame(wx.Frame):
         if not self._enable_inspect:
             return
 
+        if self._in_flutter_mode:
+            element = self._search_flutter_element_by_position(x, y)
+        else:
+            element = self._search_android_element_by_position(x, y)
+
+        if not element:
+            print('No Element Found')
+            return
+        
+        self._draw_mask(element)
+
+        if event.EventType == wx.EVT_LEFT_UP.typeId:
+            # 点击事件
+            self._expand_tree(element)
+            self.tree.SelectItem(element)
+            self.tree.SetFocus()
+            self._enable_inspect = False
+            self.btn_inspect.Enable(True)
+            # self.cb_show_hex.SetValue(False)
+            
+    def _search_flutter_element_by_position(self, x, y):
         result = []
+        controls = self._get_current_control(self._flutter_tree, self._flutter_root, x, y)
+        if len(controls) > 0:
+            min_area = 0xFFFFFFFF
+            min_item = None
+            for item in controls:
+                item_data = self.tree.GetItemData(item)
+                area = item_data["rect"]["width"] * item_data["rect"]["height"]
+                if area < min_area:
+                    min_area = area
+                    min_item = item
+            if min_item:
+                result.append({"item": min_item, "area": min_area})
+                
+        if len(result) == 0:
+            return None
+        
+        # 控件树之间比较
+        min_area = 0xFFFFFFFF
+        min_item = None
+        for item in result:
+            if item["area"] < min_area:
+                min_area = item["area"]
+                min_item = item["item"]
+        return min_item
+
+    def _search_android_element_by_position(self, x, y):
+        result = []        
         for i in range(len(self._tree_list)):
             tree = self._tree_list[i]["tree"]
             root = self._tree_list[i]["root"]
@@ -922,8 +1117,7 @@ class MainFrame(wx.Frame):
                     result.append({"index": i, "item": min_item, "area": min_area})
 
         if len(result) == 0:
-            print("find control failed")
-            return
+            return None
 
         # 控件树之间比较
         min_area = 0xFFFFFFFF
@@ -943,18 +1137,8 @@ class MainFrame(wx.Frame):
             self.cb_activity.SetValue(self._tree_list[index]["window_title"])
             self.tc_process_name.SetValue(self._tree_list[index]["process_name"])
             self._tree_idx = index
-
-        self._draw_mask(min_item)
-
-        if event.EventType == wx.EVT_LEFT_UP.typeId:
-            # 点击事件
-            self._expand_tree(min_item)
-            self.tree.SelectItem(min_item)
-            self.tree.SetFocus()
-            self._enable_inspect = False
-            self.btn_inspect.Enable(True)
-            # self.cb_show_hex.SetValue(False)
-
+        return min_item
+            
     def show_windows(self):
         """显示Window列表"""
         self.cb_activity.Clear()
@@ -992,6 +1176,13 @@ class MainFrame(wx.Frame):
         elif _id.startswith("id/"):
             _id = _id[3:]
         return _id
+    
+    def _add_flutter_child(self, process_name, tree, parent, child):
+        """添加Flutter树形控件节点"""
+        node_name = child['description']
+        node = tree.AppendItem(parent, node_name, data=child)
+        for subchild in child["children"]:
+            self._add_flutter_child(process_name, tree, node, subchild)
 
     def _add_child(self, process_name, tree, parent, child, is_weex_node=False):
         """添加树形控件节点"""
@@ -1046,15 +1237,15 @@ class MainFrame(wx.Frame):
             self.tc_id.SetHint(self._handle_control_id(item_data["ConfusedId"]))
         else:
             self.tc_id.SetHint("")
-        self.tc_type.SetValue(item_data["Type"])
+        self.flutter_tc_type.SetValue(item_data["Type"])
         self.tc_visible.SetValue("True" if item_data["Visible"] else "False")
-        self.tc_text.SetValue("")
+        self.flutter_tc_text.SetValue("")
         if "Text" in item_data:
-            self.tc_text.SetValue(item_data["Text"])
-            self.tc_text.Enable(True)
+            self.flutter_tc_text.SetValue(item_data["Text"])
+            self.flutter_tc_text.Enable(True)
             self.cb_show_hex.Enable(True)
         else:
-            self.tc_text.Enable(False)
+            self.flutter_tc_text.Enable(False)
             self.cb_show_hex.Enable(False)
         self.btn_set_text.Enable(False)
         self.tc_hashcode.SetValue("0x%.8X" % item_data["Hashcode"])
@@ -1064,9 +1255,43 @@ class MainFrame(wx.Frame):
             item_data["Rect"]["Width"],
             item_data["Rect"]["Height"],
         )
-        self.tc_rect.SetValue(rect)
+        self.flutter_tc_rect.SetValue(rect)
         self.tc_enable.SetValue("True" if item_data["Enabled"] else "False")
         self.tc_desc.SetValue(item_data["Desc"])
+        
+    def on_flutter_tree_node_click(self, event):
+        """点击控件树节点"""
+        from manager.controlmanager import WebView
+
+        # self.cb_show_hex.SetValue(False)
+        item_id = event.GetItem()
+        self._draw_mask(item_id)
+
+        item_data = self.tree.GetItemData(item_id)
+        
+        self.flutter_tc_key.SetValue(item_data["key"])
+
+        self.flutter_tc_type.SetValue(item_data["widgetRuntimeType"])
+
+        self.flutter_tc_text.SetValue("")
+        if "text" in item_data:
+            self.flutter_tc_text.SetValue(item_data["text"])
+            self.flutter_tc_text.Enable(True)
+            self.cb_show_hex.Enable(True)
+        else:
+            self.flutter_tc_text.Enable(False)
+            self.cb_show_hex.Enable(False)
+        # self.btn_set_text.Enable(False)
+        
+        rect = "(%s, %s, %s, %s)" % (
+            item_data["rect"]["x"],
+            item_data["rect"]["y"],
+            item_data["rect"]["width"],
+            item_data["rect"]["height"],
+        )
+        self.flutter_tc_rect.SetValue(rect)
+        
+        self.flutter_tc_hint.SetValue(item_data['hint'])
 
     def on_tree_mouse_event(self, event):
         """树型控件鼠标事件"""
@@ -1083,7 +1308,35 @@ class MainFrame(wx.Frame):
 
     def on_tree_node_right_click(self, event):
         """ """
-        self.tree.PopupMenu(TreeNodePopupMenu(self, event.GetItem()), event.Point)
+        try:
+            self.tree.PopupMenu(TreeNodePopupMenu(self, event.GetItem()), event.Point)
+        except:
+            pass
+        
+    def find_flutter_control(self, parent):
+        """查找Flutter节点"""
+        item_data = self.tree.GetItemData(parent)
+        result = []
+        if not item_data["Visible"]:
+            return []
+        if item_data["Rect"]["Width"] == 0 or item_data["Rect"]["Height"] == 0:
+            return []
+        
+        if self._is_flutter_control(item_data["Type"]):
+            self._current_flutter_view = parent
+            result.append(parent)
+
+        item, cookie = self.tree.GetFirstChild(parent)
+        while item:
+            result.extend(self.find_flutter_control(item))
+            if sys.platform == "win32":
+                item, cookie = self.tree.GetNextChild(item, cookie)
+            else:
+                item = self.tree.GetNextSibling(item)
+        return result
+        
+    def _is_flutter_control(self, widget_type):
+        return widget_type == 'io.flutter.embedding.android.FlutterView'
 
     def find_webview_control(self, parent):
         """查找WebView节点"""
@@ -1120,7 +1373,8 @@ class MainFrame(wx.Frame):
     def _get_control_by_hashcode(self, parent, hashcode):
         """根据hashcode找到控件"""
         item_data = self.tree.GetItemData(parent)
-        if item_data["Hashcode"] == hashcode:
+        item_hashcode = item_data["hashCode"] if self._in_flutter_mode else item_data["Hashcode"]
+        if item_hashcode == hashcode:
             return parent
         item, cookie = self.tree.GetFirstChild(parent)
         while item:
@@ -1138,6 +1392,7 @@ class MainFrame(wx.Frame):
         control = self._get_control_by_hashcode(self.root, hashcode)
         if not control:
             raise RuntimeError(u"查找控件失败：%s" % hashcode)
+        
         self._draw_mask(control)
         self._expand_tree(control)
         self.tree.SelectItem(control)
@@ -1145,6 +1400,43 @@ class MainFrame(wx.Frame):
 
     def locate_by_qpath(self, qpath):
         """使用QPath定位控件"""
+        if not self._in_flutter_mode:
+            self._locate_android_by_qpath(qpath)
+        else:
+            self._locate_flutter_by_qpath(qpath)
+        
+    def _locate_flutter_by_qpath(self, qpath):
+        """使用QPath定位Flutter控件"""
+        window_title = self.cb_activity.GetValue()
+        widgets = self._control_manager.get_flutter_control(window_title, None, qpath)
+        widgets = list(filter(lambda x: self._get_control_by_hashcode(self.root, x['hashCode']) != None, widgets))
+        
+        if len(widgets) <= 0:
+            pos = self._control_manager.get_flutter_control(window_title, None, qpath, True)
+            split_char = qpath[0]
+            qpath_list = qpath[1:].split(split_char)
+            err_qpath = split_char.join(qpath_list[pos:])
+            if err_qpath:
+                err_qpath = split_char + err_qpath  # 补上前面的分隔符
+            err_msg = u"控件：%s 未找到\n未找到部分路径为：【%s】" % (qpath, err_qpath)
+            raise ControlNotFoundError(err_msg)
+        if len(widgets) > 1:
+            # 找到重复控件
+            dlg = SwitchNodeDialog(
+                [item['hashCode'] for item in widgets],
+                self,
+                u"共找到%d个重复控件" % len(widgets),
+                u"点击“下一个”按钮切换到下一个重复控件",
+                u"上一个",
+                u"下一个",
+            )
+            dlg.Show()
+            return
+
+        self._focus_control_by_hashcode(widgets[0]['hashCode'])
+            
+    def _locate_android_by_qpath(self, qpath):
+        """使用QPath定位Android控件"""
         window_title = self.cb_activity.GetValue()
         hashcode = self._control_manager.get_control(window_title, None, qpath)
         if hashcode == 0:
@@ -1168,20 +1460,34 @@ class MainFrame(wx.Frame):
             )
             dlg.Show()
             return
-
         self._focus_control_by_hashcode(hashcode)
-
+        
     def on_show_hex_string_checked(self, event):
         """ """
-        val = self.tc_text.GetValue()
+        val = self.flutter_tc_text.GetValue()
         if self.cb_show_hex.IsChecked():
             val = val.encode("utf8")
-            self.tc_text.SetValue(repr(val)[1:-1])
+            self.flutter_tc_text.SetValue(repr(val)[1:-1])
         else:
             try:
-                self.tc_text.SetValue(eval("'" + val + "'"))
+                self.flutter_tc_text.SetValue(eval("'" + val + "'"))
             except:
                 Log.ex("eval error")
+                
+    def _start_flutter_debug(self):
+        self._flutter_debug_started = True
+        self._in_flutter_mode = True
+        
+        window_title = self.cb_activity.GetValue()
+
+        def work():
+            if not self._control_manager.try_get_flutter_driver(window_title):
+                driver = self._control_manager.get_flutter_driver(window_title)
+                self.statusbar.SetStatusText(u"Activity: %s已重新打开" % window_title, 0)
+                self.statusbar.SetStatusText(u"Flutter调试地址: %s" % driver.observatory_url, 1)   
+            run_in_main_thread(self.on_getcontrol_btn_click)(None)  
+        self.statusbar.SetStatusText(u"正在重新打开Activity: %s" % window_title, 0)
+        self._work_thread.post_task(work)
 
 
 class CanvasPanel(wx.Panel):
@@ -1265,18 +1571,35 @@ class TreeNodePopupMenu(wx.Menu):
         item6 = wx.MenuItem(self, wx.NewId(), u"打开WebView命令行")
         self.Append(item6)
         self.Bind(wx.EVT_MENU, self.on_open_webview_console_menu_click, item6)
+        
+        item7 = wx.MenuItem(self, wx.NewId(), u"查找Flutter控件")
+        self.Append(item7)
+        self.Bind(wx.EVT_MENU, self.on_find_flutter_control_menu_click, item7)
+        
+        item8 = wx.MenuItem(self, wx.NewId(), u"启动Flutter调试")
+        self.Append(item8)
+        self.Bind(wx.EVT_MENU, self.on_open_flutter_debug_menu_click, item8)
 
-        menu_title = u"切换控件树[%d/%d]" % (
+        menu_title = u"切换Android控件树[%d/%d]" % (
             self._parent._tree_idx + 1,
             len(self._parent._tree_list),
         )
-        item7 = wx.MenuItem(self, wx.NewId(), menu_title)
-        self.Append(item7)
-        self.Bind(wx.EVT_MENU, self.on_switch_control_tree_menu_click, item7)
+        item9 = wx.MenuItem(self, wx.NewId(), menu_title)
+        self.Append(item9)
+        self.Bind(wx.EVT_MENU, self.on_switch_control_tree_menu_click, item9)
+        
+        item10 = wx.MenuItem(self, wx.NewId(), u"切换Flutter控件树")
+        self.Append(item10)
+        self.Bind(wx.EVT_MENU, self.on_open_flutter_tree_menu_click, item10)
+        
+        # item11 = wx.MenuItem(self, wx.NewId(), u"切换Android控件树")
+        # self.Append(item11)
+        # self.Bind(wx.EVT_MENU, self.on_open_android_tree_menu_click, item11)
 
         if not select_node:
             item5.Enable(False)
             item6.Enable(False)
+            item8.Enable(False)
         else:
             item_data = self._parent.tree.GetItemData(select_node)
             from qt4a.androiddriver.util import ControlExpiredError
@@ -1284,28 +1607,49 @@ class TreeNodePopupMenu(wx.Menu):
             process_name = self._parent._tree_list[self._parent._tree_idx][
                 "process_name"
             ]
-            try:
-                webview = self._parent._control_manager.get_webview(
-                    process_name, item_data["Hashcode"]
-                )  # self._parent.cb_activity.GetValue()
-                self._webview_type = webview.get_webview_type()
-            except ControlExpiredError:
-                dlg = wx.MessageDialog(
-                    self._parent,
-                    u"请重新刷新控件树",
-                    u"WebView控件已失效",
-                    style=wx.OK | wx.ICON_ERROR,
-                )
-                result = dlg.ShowModal()
-                dlg.Destroy()
-                self.Destroy()
-                return
+
+            if not self._parent._in_flutter_mode:            
+                try:
+                    webview = self._parent._control_manager.get_webview(process_name, item_data["Hashcode"])  # self._parent.cb_activity.GetValue()
+                    self._webview_type = webview.get_webview_type()
+                except ControlExpiredError:
+                    dlg = wx.MessageDialog(
+                        self._parent,
+                        u"请重新刷新控件树",
+                        u"WebView控件已失效",
+                        style=wx.OK | wx.ICON_ERROR,
+                    )
+                    result = dlg.ShowModal()
+                    dlg.Destroy()
+                    self.Destroy()
+                    return
+            else:
+                self._webview_type = EnumWebViewType.NotWebView
+            
             if self._webview_type == EnumWebViewType.NotWebView:
                 item5.Enable(False)
                 item6.Enable(False)
             else:
                 item5.Enable(True)
                 item6.Enable(True)
+                
+            if not self._parent._in_flutter_mode and self._parent._is_flutter_control(item_data["Type"]):
+                item8.Enable(True)
+            else:
+                item8.Enable(False)
+                
+            if self._parent._in_flutter_mode:
+                item4.Enable(False)
+                item7.Enable(False)
+                item9.Enable(True)
+                item10.Enable(False)
+                # item11.Enable(True)
+            else:
+                if self._parent._flutter_debug_started:
+                    item10.Enable(True)
+                else:
+                    item10.Enable(False)
+                # item11.Enable(False)
 
     def _locate_qpath(self, window_title, root_hashcode, qpath, target_hashcode=None):
         """使用QPath定位"""
@@ -1587,7 +1931,12 @@ class TreeNodePopupMenu(wx.Menu):
     def on_gen_qpath_menu_click(self, event):
         """生成QPath"""
         control = self._parent.tree.GetSelection()
-        result = self._gen_qpath(control)
+        
+        if self._parent._in_flutter_mode:
+            result = self._gen_flutter_qpath(control)
+        else:
+            result = self._gen_qpath(control)
+        
         if result == None:
             dlg = wx.MessageDialog(
                 self._parent,
@@ -1751,20 +2100,214 @@ class TreeNodePopupMenu(wx.Menu):
         )  # self._parent.cb_activity.GetValue()
         if self._parent._chrome:
             self._parent.refresh_timer.Start(int(1000))
-
+            
+    def on_open_flutter_debug_menu_click(self, event):
+        """Flutter页面"""
+        window_title = self._parent.cb_activity.GetValue()
+        if not self._parent._control_manager.try_get_flutter_driver(window_title):
+            dlg = wx.MessageDialog(
+                self._parent,
+                u"{}需要重新打开以获取Flutter调试URL，是否继续？".format(window_title),
+                u"提示",
+                style=wx.YES_NO | wx.YES_DEFAULT | wx.ICON_QUESTION,
+            )
+            result = dlg.ShowModal()
+            dlg.Destroy()
+            if result != wx.ID_YES:
+                return
+        self._parent._start_flutter_debug()
+            
     def on_open_webview_console_menu_click(self, event):
         """点击打开WebView命令行菜单"""
         dlg = WebViewConsoleDialog(self._parent, self._select_node, self._webview_type)
         dlg.Show()
+        
+    def on_find_flutter_control_menu_click(self, event):
+        """查找并定位到Flutter控件"""
+        flutter_view_list = self._parent.find_flutter_control(self._parent.root)
+
+        if len(flutter_view_list) == 0:
+            dlg = wx.MessageDialog(
+                self._parent,
+                u"当前界面未找到Flutter控件",
+                u"查找Flutter控件失败",
+                style=wx.OK | wx.ICON_ERROR,
+            )
+            result = dlg.ShowModal()
+            dlg.Destroy()
+            return
+        elif len(flutter_view_list) == 1:
+            flutter_view = flutter_view_list[0]
+            item_data = self._parent.tree.GetItemData(flutter_view)
+            self._parent._focus_control_by_hashcode(item_data["Hashcode"])
+        else:
+            for flutter_view in flutter_view_list:
+                item_data = self._parent.tree.GetItemData(flutter_view)
+                self._parent._focus_control_by_hashcode(item_data["Hashcode"])
 
     def on_switch_control_tree_menu_click(self, event):
         """点击切换控件树菜单"""
+        if self._parent._in_flutter_mode:
+            self.on_open_android_tree_menu_click(event)
+            return
+        
         index = self._parent._tree_idx
         index += 1
         if index >= len(self._parent._tree_list):
             index = 0
         print("switch from %d to %d" % (self._parent._tree_idx, index))
         self._parent.switch_control_tree(index)
+        
+    def on_open_flutter_tree_menu_click(self, event):
+        self._parent._change_to_flutter_tree()
+    
+    def on_open_android_tree_menu_click(self, event):
+        self._parent._change_to_android_tree()
+        
+    def _locate_flutter_qpath(self, window_title, root_hashcode, qpath, target_hashcode=None):
+        """使用QPath定位"""
+        widgets = self._parent._control_manager.get_flutter_control(
+            window_title, root_hashcode, qpath
+        )
+        widgets = list(filter(lambda x: self._parent._get_control_by_hashcode(
+            self._parent.root, x['hashCode']) != None, widgets))
+        
+        if len(widgets) <= 0:
+            return None
+            # raise RuntimeError('It\'s impossible!')
+        elif len(widgets) == 1:
+            # 能够唯一确定控件
+            return qpath
+        else:
+            # 使用Instance定位
+            if not target_hashcode:
+                return None
+            
+            for idx, widget in enumerate(widgets):
+                if widget['hashCode'] == target_hashcode:
+                    return qpath + " && Instance=%d" % idx
+        return None
+    
+    def _gen_flutter_qpath_by_attrs(self, control, window_title, root):
+        """根据属性生成Flutter QPath"""
+        item_data = self._parent.tree.GetItemData(control)
+        root_hashcode = None
+        qpath = ""
+        if root:
+            if not isinstance(root, str):
+                root_item_data = self._parent.tree.GetItemData(root)
+                root_hashcode = root_item_data["hashCode"]
+            else:
+                qpath = root + " "
+        min_qpath_len = 0
+
+        if item_data['key'] != "":
+            # 存在ID
+            qpath += '/Key="%s"' % item_data['key']
+        else:
+            qpath += "/"
+            min_qpath_len = len(qpath)  # 用于判断是否需要添加&&
+
+        text = item_data.get("text")
+        if text:
+            # 使用文本定位
+            if len(qpath) > min_qpath_len:
+                qpath += " && "
+            qpath += 'Text="%s"' % text
+
+        type = item_data["widgetRuntimeType"]
+        if type:
+            if len(qpath) > min_qpath_len:
+                qpath += " && "
+            qpath += 'Type="%s"' % type
+            
+        hint = item_data["hint"]
+        if hint:
+            if len(qpath) > min_qpath_len:
+                qpath += " && "
+            qpath += 'Hint="%s"' % hint
+
+        qpath = self._locate_flutter_qpath(window_title, root_hashcode, qpath, item_data['hashCode'])
+        if qpath:
+            return True, qpath
+        return False, qpath
+    
+    def _gen_flutter_long_qpath(self, control, root, window_title):
+        """生成Flutter 长QPath"""
+
+        qpath = ""
+
+        root_hash = None
+        if root:
+            root_data = self._parent.tree.GetItemData(root)
+            root_hash = root_data["hashCode"]
+
+        last_ctrl = None  # qpath定位到的控件
+        depth = 0
+        parent = control
+        prev_pos = -1  # 上一次插入QPath的位置，用于加入MaxDepth字段
+        while True:
+            if parent == self._parent.root or parent == root:
+                break
+            ctrl_data = self._parent.tree.GetItemData(parent)
+            if ctrl_data['key']:
+                # 存在ID
+                if not last_ctrl:
+                    last_ctrl = parent  # 第一个有ID的控件
+                _qpath = '/Key="%s"' % ctrl_data['key']
+                if len(qpath) > 0 and prev_pos > 0:
+                    # 不是最底层控件
+                    if depth > 1:
+                        qpath = (
+                            qpath[:prev_pos]
+                            + " && MaxDepth=%d" % depth
+                            + qpath[prev_pos:]
+                        )
+                    qpath = _qpath + " " + qpath
+                    depth = 0
+                    # print 'xx', qpath
+                    if self._locate_flutter_qpath(window_title, root_hash, qpath):
+                        return last_ctrl, qpath
+                else:
+                    qpath = _qpath
+                prev_pos = len(_qpath)
+            parent = self._parent.tree.GetItemParent(parent)
+            depth += 1
+        return None, qpath
+    
+    def _gen_flutter_qpath(self, control):
+        """生成Flutter QPath
+        """
+        window_title = self._parent.cb_activity.GetValue()
+        item_data = self._parent.tree.GetItemData(control)
+
+        Log.i("GetQPath", "使用属性定位")
+        result, qpath = self._gen_flutter_qpath_by_attrs(control, window_title, None)
+        if result:
+            return qpath
+
+        Log.i("GetQPath", "判断父控件是否可以定位")
+        parent = self._parent.tree.GetItemParent(control)
+        result, qpath = self._gen_flutter_qpath_by_attrs(parent, window_title, None)
+        if result:
+            ret, child_qpath = self._gen_flutter_qpath_by_attrs(control, window_title, qpath)
+            if ret:
+                return child_qpath
+            # 只能使用Instance定位了
+            return self._locate_flutter_qpath(
+                window_title, None, child_qpath, item_data["hashCode"]
+            )
+            # raise NotImplementedError(qpath)
+
+        # 没有特殊容器节点,再遍历一次
+        # --------- 4 --------------
+        Log.i("GetQPath", "使用长ID定位")
+        ret, qpath = self._gen_flutter_long_qpath(control, None, window_title)
+        if ret:
+            return qpath
+        else:
+            # 寻找最近公共祖先
+            return None
 
 
 class CustomMessageDialog(wx.Dialog):
