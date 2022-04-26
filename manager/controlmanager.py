@@ -120,7 +120,7 @@ class ControlManager(BaseManager):
             try:
                 launcher_activity = "%s/%s" % (window_process, window_title)
                 ret = self._device.adb.start_activity(launcher_activity, extra={})
-                if ret['Status'].find('ok') < 0:
+                if ret['Status'].find('ok') < 0 or ret['LaunchState'].find('UNKNOWN') >= 0:
                     raise RuntimeError('重新打开应用失败。')
             except:
                 # 尝试找到该activity的LAUNCHER activity, 没找到的话再从当前activity启动
@@ -147,6 +147,8 @@ class ControlManager(BaseManager):
             debugger_url_info = None
             
             for item in log_list:
+                if item.find('127.0.0.1') >= 0:
+                    print(item)
                 res = re.search(REG_EXP, item)
                 if res:
                     debugger_url_info = res
@@ -447,7 +449,7 @@ class ControlManager(BaseManager):
         """查找控件"""
         # if isinstance(qpath, str): qpath = qpath.encode('utf8')
         qpath = QPath(qpath)
-        driver = self._get_flutter_driver()
+        driver = self._get_flutter_driver(window_title)
         try:
             return driver.get_widget(FlutterFinder().by_qpath(json.dumps(qpath._parsed_qpath)))
         except Exception as e:
@@ -462,9 +464,9 @@ class ControlManager(BaseManager):
             else:
                 raise e
     
-    def _get_flutter_control_tree(self):
+    def _get_flutter_control_tree(self, window_title):
         """获取指定进程中的所有控件树"""
-        driver = self._get_flutter_driver()
+        driver = self._get_flutter_driver(window_title)
         Log.i("ControlManager", "get flutter control tree in process")
         result = driver.get_widget_tree()
         Log.i("ControlManager", "get flutter control tree complete")
@@ -495,7 +497,7 @@ class ControlManager(BaseManager):
         if current_process == None:
             Log.w("ControlManager", "get process of %s failed" % current_window)
             current_process = package_name
-        result = self._get_flutter_control_tree()  # 先获取当前窗口所在进程中的所有控件树
+        result = self._get_flutter_control_tree(current_window.title)  # 先获取当前窗口所在进程中的所有控件树
         process_list.append(current_process)
         return result
 

@@ -635,7 +635,7 @@ class MainFrame(wx.Frame):
             if self._device_host:
                 device_id = self._device_host + ":" + device_id
             self._device = DeviceDriver(ADB.open_device(device_id))
-            self._device.adb.start_logcat(clear=False)
+            self._device.adb.start_logcat(clear=True)
             
             self.statusbar.SetStatusText(u"当前设备：%s" % self._select_device, 0)
             for tree in self._tree_list:
