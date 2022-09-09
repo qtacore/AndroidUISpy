@@ -602,8 +602,8 @@ class MainFrame(wx.Frame):
     def _take_screen_shot(self, tmp_path, path, use_cmd=True):
         """屏幕截图"""
         if use_cmd:
-            self._device.adb.run_shell_cmd("screencap %s" % tmp_path, True)
-            self._device.adb.run_shell_cmd("chmod 444 %s" % tmp_path, True)
+            self._device.adb.run_shell_cmd("screencap %s" % tmp_path)
+            self._device.adb.run_shell_cmd("chmod 444 %s" % tmp_path)
             self._device.adb.pull_file(tmp_path, path)
         else:
             self._device.take_screen_shot(path, 10)
