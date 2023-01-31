@@ -963,6 +963,10 @@ class MainFrame(wx.Frame):
         if not self._scale_rate:
             return
         
+        if not self.tree:
+            # tree maybe destroyed already
+            return
+        
         item_data = self.tree.GetItemData(control)
         if 'rect' not in item_data:
             return
@@ -1272,6 +1276,10 @@ class MainFrame(wx.Frame):
     def on_flutter_tree_node_click(self, event):
         """点击控件树节点"""
         from manager.controlmanager import WebView
+        
+        if not self.tree:
+            # tree maybe destroyed already
+            return
 
         # self.cb_show_hex.SetValue(False)
         item_id = event.GetItem()
@@ -1919,8 +1927,8 @@ class TreeNodePopupMenu(wx.Menu):
 
     def _copy_to_clipboard(self, text):
         """拷贝到剪切板"""
-        if not isinstance(text, str):
-            text = text.decode("utf8")
+        # if not isinstance(text, str):
+        #     text = text.decode("utf8")
         if sys.platform == "win32":
             import win32con, win32clipboard
 

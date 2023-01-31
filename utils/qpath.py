@@ -56,8 +56,8 @@ class QPath(object):
         :type qpath_string: string
         :param qpath_string: QPath字符串
         """
-        if not isinstance(qpath_string, str):
-            raise QPathError("输入的QPath(%s)不是字符串!" % (qpath_string))
+        # if not isinstance(qpath_string, str):
+        #     raise QPathError("输入的QPath(%s)不是字符串!" % (qpath_string))
         self._strqpath = qpath_string
         self._path_sep, self._parsed_qpath = self._parse(qpath_string)
         self._error_qpath = None
