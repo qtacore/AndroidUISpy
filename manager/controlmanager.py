@@ -136,7 +136,7 @@ class ControlManager(BaseManager):
         """
         解析logcat内容, 获取flutter debugger url信息
         """
-        REG_EXP = "Observatory listening on http://(127.0.0.1:(\d+)/.*?/)"
+        REG_EXP = "The Dart VM service is listening on http://(127.0.0.1:(\d+)/.*?/)"
 
         while duration >= 0:
             duration -= 1
@@ -147,8 +147,6 @@ class ControlManager(BaseManager):
             debugger_url_info = None
             
             for item in log_list:
-                if item.find('127.0.0.1') >= 0:
-                    print(item)
                 res = re.search(REG_EXP, item)
                 if res:
                     debugger_url_info = res
@@ -161,6 +159,7 @@ class ControlManager(BaseManager):
             # adb.create_tunnel 创建隧道
             self._device.adb.forward(int(port), int(port))
             ws_url = "ws://" + debugger_url_info.group(1) + "ws"
+            Log.i('ws_url: ', ws_url)
             return ws_url
         raise RuntimeError('获取Flutter Observatory listen url failed.')
 

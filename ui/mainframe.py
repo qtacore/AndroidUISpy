@@ -598,10 +598,13 @@ class MainFrame(wx.Frame):
         self.image.SetPosition((x, y))
         self.mask_panel.SetPosition((x, y))
 
+        if self._flutter_tree:
+            self._flutter_tree.SetSize((tree_width, tree_height))
+            
         for i in range(len(self._tree_list)):
             # 所有控件树都要修改
             self._tree_list[i]["tree"].SetSize((tree_width, tree_height))
-
+            
         try:
             image = image.ConvertToBitmap()
         except:
@@ -614,8 +617,15 @@ class MainFrame(wx.Frame):
         self.mask_panel.Show()
 
         if self.cb_auto_refreash.IsChecked():
-            os.remove(temp_path)
-            os.remove(image_path)
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            try:
+                os.remove(image_path)
+            except:
+                pass
 
     def on_inspect_btn_click(self, event):
         """探测按钮点击回调"""
@@ -635,7 +645,7 @@ class MainFrame(wx.Frame):
             if self._device_host:
                 device_id = self._device_host + ":" + device_id
             self._device = DeviceDriver(ADB.open_device(device_id))
-            self._device.adb.start_logcat(clear=True)
+            self._device.adb.start_logcat(clear=False)
             
             self.statusbar.SetStatusText(u"当前设备：%s" % self._select_device, 0)
             for tree in self._tree_list:
