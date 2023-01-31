@@ -210,6 +210,8 @@ class WindowManager(BaseManager):
         p3 = re.compile(
             r"mShownFrame=\[([-\d\.]+),([-\d\.]+)\]\[([-\d\.]+),([-\d\.]+)\]"
         )
+        record = {}
+        
         for line in result.split("\n")[1:]:
             # print repr(line)
             ret = p1.match(line)
@@ -221,10 +223,12 @@ class WindowManager(BaseManager):
                         title = items[1]
                     else:
                         title = items[0]
+                
                 window = Window(
                     self, int(ret.group(1)), ret.group(2), title
                 )  # 此逻辑可能有bug
                 windows.append(window)
+                record[title] = {'id': int(ret.group(1)), 'hashcode': ret.group(2)}
             elif "mHoldScreenWindow" in line:
                 ret = p2.search(line)
                 if ret:
@@ -284,6 +288,17 @@ class WindowManager(BaseManager):
                             window[key] = val
             else:
                 pass
+            
+        if not self._current_window:
+            result = self._device.adb.run_shell_cmd("dumpsys activity activities | grep mResumedActivity")
+            result = result.replace("\r", "")
+            p = re.compile(r"mResumedActivity: ActivityRecord{(\S+) \S+ (\S+) .*?}")
+            ret = p.search(result)
+                
+            if ret is not None:
+                parts = ret.group(2).split('/')
+                title = parts[0]+'/'+parts[0]+parts[1]
+                self._current_window = Window(self, record[title]['id'], record[title]['hashcode'], title)
 
         return windows
 
