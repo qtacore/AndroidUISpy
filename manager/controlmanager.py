@@ -306,7 +306,7 @@ class ControlManager(BaseManager):
             debugging_url = debugging_tool.get_debugging_url(
                 process_name, multi_page_callback, None
             )
-            service_name = "xweb_devtools_remote_%d" % pid
+            service_name = debugging_tool.get_service_name(process_name)
         elif (
             webview_type == EnumWebViewType.X5WebView
             or self._device.adb.get_sdk_version() >= 19
@@ -320,7 +320,7 @@ class ControlManager(BaseManager):
             debugging_url = debugging_tool.get_debugging_url(
                 process_name, multi_page_callback, None
             )
-            service_name = "webview_devtools_remote_%d" % pid
+            service_name = debugging_tool.get_service_name(process_name)
 
         if debugging_url == None:
             return None
