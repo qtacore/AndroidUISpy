@@ -29,10 +29,11 @@ def replace_url_func_wrap(func):
         if not url:
             return url
         url = url.replace("?ws=127.0.0.1/", "?ws=/")  # 避免最后生成的url错误
-        return url.replace(
-            "chrome-devtools-frontend.appspot.com",
-            "chrome-devtools-frontend.netlify.com",
-        )
+        return url
+        # return url.replace(
+        #     "chrome-devtools-frontend.appspot.com",
+        #     "chrome-devtools-frontend.netlify.com",
+        # )
 
     return _func
 
@@ -63,6 +64,7 @@ class WebViewDebuggingTool(object):
         for service_name in [
             "xweb_devtools_remote_%d" % pid,
             "webview_devtools_remote_%d" % pid,
+            "webview_devtools_remote_twe_%d" % pid,
         ]:
             if service_name in service_list:
                 return service_name
@@ -72,6 +74,7 @@ class WebViewDebuggingTool(object):
         service_name = self.get_service_name(process_name)
         if not service_name:
             raise RuntimeError("Get webview debug service name failed")
+        print("create tunnel", service_name)
         return self._device.adb.create_tunnel(service_name, "localabstract")
 
     def is_webview_debugging_opened(self, process_name):
