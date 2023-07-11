@@ -41,21 +41,10 @@ class Chrome(object):
                 path = os.path.join(path, r"Local Settings\Application Data")
             path = os.path.join(path, r"Google\Chrome\Application\chrome.exe")
             if not os.path.exists(path):
-                import ctypes
-
-                buff = ctypes.create_string_buffer(256)
-                ctypes.memset(buff, 0, 256)
-                if ctypes.windll.kernel32.GetWindowsDirectoryA(buff, 256):
-                    buff[3] = int(0)
-                    buff = buff.value
-                else:
-                    buff = "C:\\"
-                buff = buff.decode("utf-8")
-                path = buff + r"Program Files\Google\Chrome\Application\chrome.exe"
+                path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
                 if not os.path.exists(path):
                     path = (
-                        buff
-                        + r"Program Files (x86)\Google\Chrome\Application\chrome.exe"
+                        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
                     )
             return path
         elif sys.platform == "darwin":
