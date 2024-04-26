@@ -264,7 +264,7 @@ class MainFrame(wx.Frame):
         )
 
         self.image = wx.StaticBitmap(self.main_panel)
-        # self.image.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
+        self.image.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
 
         self.mask_panel = CanvasPanel(parent=self.main_panel)
         self.mask_panel.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
@@ -283,8 +283,8 @@ class MainFrame(wx.Frame):
         # -------------------------------- 下部区域 ------------------------------------
 
         self.sb2 = wx.StaticBox(self.panel, label="控件属性", size=(-1, -1))
-        if default_size[0] > 1200:
-            space = 50 #int((default_size[0] - 1200) / 3)
+        if default_size[0] > 1500:
+            space = int((default_size[0] - 1500) / 3)
         else:
             space = 0
         Log.i(self.__class__.__name__, "Space is %d" % space)
