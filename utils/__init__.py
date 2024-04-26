@@ -38,9 +38,15 @@ def get_driver_root_path():
 
 def run_in_thread(func):
     """在线程中执行函数"""
+    def safe_func(*args):
+        try:
+            Log.i(func.__name__, "Invoke method in thread")
+            return func(*args)
+        except Exception:
+            Log.ex(func.__name__, "Invoke method failed")
 
     def wrap_func(*args):
-        t = threading.Thread(target=func, args=args)
+        t = threading.Thread(target=safe_func, args=args)
         t.setDaemon(True)
         t.start()
 

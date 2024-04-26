@@ -27,6 +27,9 @@ import wx.adv
 
 from PIL import Image
 
+from qt4a.androiddriver.adb import ADB
+from qt4a.androiddriver.devicedriver import DeviceDriver
+
 from manager.devicemanager import DeviceManager
 from manager.windowmanager import WindowManager
 from manager.controlmanager import ControlManager, WebView
@@ -281,7 +284,7 @@ class MainFrame(wx.Frame):
 
         self.sb2 = wx.StaticBox(self.panel, label="控件属性", size=(-1, -1))
         if default_size[0] > 1200:
-            space = int((default_size[0] - 1200) / 2)
+            space = 50 #int((default_size[0] - 1200) / 3)
         else:
             space = 0
         Log.i(self.__class__.__name__, "Space is %d" % space)
@@ -362,29 +365,59 @@ class MainFrame(wx.Frame):
         self.hsizer.AddSpacer(space)
 
         self.vsizer5 = wx.BoxSizer(wx.VERTICAL)
-
-        self.label13 = wx.StaticText(
-            self.panel, label="ProcessName", size=wx.DefaultSize
-        )
+        self.label13 = wx.StaticText(self.panel, label="Clickable", size=wx.DefaultSize)
         self.vsizer5.Add(self.label13, flag=wx.LEFT | wx.TOP, border=10)
 
-        self.label14 = wx.StaticText(
-            self.panel, label="Descriptions", size=wx.DefaultSize
-        )
+        self.label14 = wx.StaticText(self.panel, label="Checkable", size=wx.DefaultSize)
         self.vsizer5.Add(self.label14, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.label15 = wx.StaticText(self.panel, label="Checked", size=wx.DefaultSize)
+        self.vsizer5.Add(self.label15, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.label16 = wx.StaticText(self.panel, label="", size=wx.DefaultSize) # 占位
+        self.vsizer5.Add(self.label16, flag=wx.LEFT | wx.TOP, border=10)
 
         self.hsizer.Add(self.vsizer5)
         self.hsizer.AddSpacer(20)
 
         self.vsizer6 = wx.BoxSizer(wx.VERTICAL)
 
-        self.tc_process_name = wx.TextCtrl(self.panel, size=(250, -1))
-        self.vsizer6.Add(self.tc_process_name, flag=wx.LEFT | wx.TOP, border=12)
+        self.tc_clickable = wx.TextCtrl(self.panel, size=(200, -1))
+        self.vsizer6.Add(self.tc_clickable, flag=wx.LEFT | wx.TOP, border=12)
 
-        self.tc_desc = wx.TextCtrl(self.panel, size=(250, -1))
-        self.vsizer6.Add(self.tc_desc, flag=wx.LEFT | wx.TOP, border=12)
+        self.tc_checkable = wx.TextCtrl(self.panel, size=(200, -1))
+        self.vsizer6.Add(self.tc_checkable, flag=wx.LEFT | wx.TOP, border=12)
+
+        self.tc_checked = wx.TextCtrl(self.panel, size=(200, -1))
+        self.vsizer6.Add(self.tc_checked, flag=wx.LEFT | wx.TOP, border=12)
 
         self.hsizer.Add(self.vsizer6)
+        self.hsizer.AddSpacer(space)
+
+        self.vsizer7 = wx.BoxSizer(wx.VERTICAL)
+
+        self.label17 = wx.StaticText(
+            self.panel, label="ProcessName", size=wx.DefaultSize
+        )
+        self.vsizer7.Add(self.label17, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.label18 = wx.StaticText(
+            self.panel, label="Descriptions", size=wx.DefaultSize
+        )
+        self.vsizer7.Add(self.label18, flag=wx.LEFT | wx.TOP, border=10)
+
+        self.hsizer.Add(self.vsizer7)
+        self.hsizer.AddSpacer(20)
+
+        self.vsizer8 = wx.BoxSizer(wx.VERTICAL)
+
+        self.tc_process_name = wx.TextCtrl(self.panel, size=(250, -1))
+        self.vsizer8.Add(self.tc_process_name, flag=wx.LEFT | wx.TOP, border=12)
+
+        self.tc_desc = wx.TextCtrl(self.panel, size=(250, -1))
+        self.vsizer8.Add(self.tc_desc, flag=wx.LEFT | wx.TOP, border=12)
+
+        self.hsizer.Add(self.vsizer8)
         # self.hsizer.AddSpacer(50)
 
         self.bsizer.Add(self.hsizer, 0, wx.CENTER)
@@ -526,7 +559,6 @@ class MainFrame(wx.Frame):
 
     def _resize_screen_image(self, image):
         w, h = image.size
-        print(w, h)
         if w > h:
             # 横屏情况
             target_width = int(self._main_width / 2)
@@ -569,11 +601,9 @@ class MainFrame(wx.Frame):
         img.save(temp_path)
         screen_width, screen_height = image.size
         w, h = img.size
-        print(w, h)
         self._scale_rate = w / screen_width
         self._adapt_device_screen(screen_width, screen_height, self._scale_rate)
 
-        print(temp_path)
         image = wx.Bitmap(temp_path, wx.BITMAP_TYPE_PNG)
 
         self.image.SetBitmap(image)
@@ -593,9 +623,6 @@ class MainFrame(wx.Frame):
     @run_in_main_thread
     def on_select_device(self, event):
         """选中的某个设备"""
-        from qt4a.androiddriver.adb import ADB
-        from qt4a.androiddriver.devicedriver import DeviceDriver
-
         new_dev = self.cb_device.GetValue()
         if new_dev != self._select_device:
             self._select_device = new_dev
@@ -731,7 +758,6 @@ class MainFrame(wx.Frame):
                 self._tree_list.append(item)
         self.switch_control_tree(index)
 
-    # @run_in_thread
     def on_getcontrol_btn_click(self, event):
         """点击获取控件按钮"""
         self.btn_getcontrol.Enable(False)
@@ -743,46 +769,51 @@ class MainFrame(wx.Frame):
             # 锁屏状态
             dlg = wx.MessageDialog(
                 self,
-                "设备：%s 处于锁屏状态，是否需要解锁？" % self.cb_device.GetValue(),
+                "设备：%s 处于锁屏状态，请手动解锁后点击OK按钮" % self.cb_device.GetValue(),
                 "提示",
                 style=wx.YES_NO | wx.YES_DEFAULT | wx.ICON_QUESTION,
             )
             result = dlg.ShowModal()
             if result == wx.ID_YES:
-                self._device.unlock_keyguard()
                 self.on_refresh_btn_click(None)
             dlg.Destroy()
 
         self.statusbar.SetStatusText("正在获取控件树……", 0)
-        time0 = time.time()
-        try:
-            controls_dict = (
-                self._control_manager.get_control_tree()
-            )  # self.cb_activity.GetValue().strip(), index
-            if not controls_dict:
+
+        def _update_control_tree():
+            time0 = time.time()
+            try:
+                controls_dict = (
+                    self._control_manager.get_control_tree()
+                )  # self.cb_activity.GetValue().strip(), index
+                if not controls_dict:
+                    return
+            except RuntimeError as e:
+                msg = e.args[0]
+                # if not isinstance(msg, str):
+                #     msg = msg.decode("utf8")
+                def _show_dialog():
+                    dlg = wx.MessageDialog(
+                        self, msg, "查找控件失败", style=wx.OK | wx.ICON_ERROR
+                    )
+                    dlg.ShowModal()
+                    dlg.Destroy()
+                run_in_main_thread(_show_dialog)()
                 return
-        except RuntimeError as e:
-            msg = e.args[0]
-            if not isinstance(msg, str):
-                msg = msg.decode("utf8")
-            dlg = wx.MessageDialog(
-                self, msg, "查找控件失败", style=wx.OK | wx.ICON_ERROR
-            )
-            result = dlg.ShowModal()
-            dlg.Destroy()
-            return
+
+            used_time = time.time() - time0
+            run_in_main_thread(lambda: self.statusbar.SetStatusText("获取控件树完成，耗时：%s S" % used_time, 0))()
+            msg = ""
+            for key in controls_dict:
+                msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
+            Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
+            self._show_control_tree(controls_dict)
+
+        run_in_thread(_update_control_tree)()
 
         t = threading.Thread(target=self._refresh_device_screenshot)
         t.setDaemon(True)
         t.start()
-
-        used_time = time.time() - time0
-        self.statusbar.SetStatusText("获取控件树完成，耗时：%s S" % used_time, 0)
-        msg = ""
-        for key in controls_dict:
-            msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
-        Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
-        self._show_control_tree(controls_dict)
 
     @run_in_main_thread
     def _show_control_tree(self, controls_dict):
@@ -821,7 +852,7 @@ class MainFrame(wx.Frame):
     def _get_current_control(self, tree, parent, x, y):
         """获取坐标（x，y）所在的控件"""
         item_data = tree.GetItemData(parent)
-        if item_data == None:
+        if item_data is None:
             return []
 
         rect = item_data["Rect"]
@@ -909,11 +940,11 @@ class MainFrame(wx.Frame):
                 return
 
         web_inspect_enabled = (
-            hasattr(self, "_current_webview") and self._current_webview != None
+            hasattr(self, "_current_webview") and self._current_webview is not None
         )
         web_inspect_enabled &= (
             hasattr(self, "_chrome")
-            and self._chrome != None
+            and self._chrome is not None
             and not self._chrome.is_closed()
         )
         if web_inspect_enabled:
@@ -1023,7 +1054,7 @@ class MainFrame(wx.Frame):
         self._control_manager.update()
         current_window = self._window_manager.get_current_window()
 
-        if current_window == None:
+        if current_window is None:
             dlg = wx.MessageDialog(
                 self,
                 "请确认手机是否出现黑屏或ANR",
@@ -1050,7 +1081,7 @@ class MainFrame(wx.Frame):
             self.cb_activity.SetClientData(idx, data)
             if window.hashcode == current_window.hashcode:
                 self.cb_activity.SetSelection(idx)
-                run_in_main_thread(self.cb_activity.SetLabelText)(window.title)
+                run_in_main_thread(lambda: self.cb_activity.SetLabelText(window.title))
 
     def _handle_control_id(self, _id):
         """处理控件ID"""
@@ -1133,6 +1164,18 @@ class MainFrame(wx.Frame):
         )
         self.tc_rect.SetValue(rect)
         self.tc_enable.SetValue("True" if item_data["Enabled"] else "False")
+        if "Clickable" in item_data:
+            self.tc_clickable.SetValue("True" if item_data["Clickable"] else "False")
+        else:
+            self.tc_clickable.SetValue("")
+        if "Checkable" in item_data:
+            self.tc_checkable.SetValue("True" if item_data["Checkable"] else "False")
+        else:
+            self.tc_checkable.SetValue("")
+        if "Checked" in item_data:
+            self.tc_checked.SetValue("True" if item_data["Checked"] else "False")
+        else:
+            self.tc_checked.SetValue("")
         self.tc_desc.SetValue(item_data["Desc"])
 
     # def on_tree_mouse_event(self, event):
@@ -1404,7 +1447,6 @@ class TreeNodePopupMenu(wx.Menu):
                 hashcode = self._parent._control_manager.get_control(
                     window_title, root_hashcode, _qpath
                 )
-                print(hashcode)
                 if hashcode == target_hashcode:
                     return _qpath
         return None
@@ -1524,7 +1566,6 @@ class TreeNodePopupMenu(wx.Menu):
                         )
                     qpath = _qpath + " " + qpath
                     depth = 0
-                    # print 'xx', qpath
                     if self._locate_qpath(window_title, root_hash, qpath):
                         return last_ctrl, qpath
                 else:
@@ -1559,7 +1600,6 @@ class TreeNodePopupMenu(wx.Menu):
         depth += 1
         item, cookie = self._parent.tree.GetFirstChild(parent)
         while item:
-            # print item
             result = self._get_control_depth(item, control, depth)
             if result:
                 return result
@@ -2033,7 +2073,6 @@ var tmp_result = %s;
             return
         self.tc_console.SetEditable(True)
         current_pos = self.tc_console.GetInsertionPoint()
-        # print key
         if current_pos < self._last_pos or (current_pos == self._last_pos and key == 8):
             self.tc_console.SetEditable(False)
             return

@@ -149,7 +149,7 @@ class WindowManager(BaseManager):
 
     def _update_window_info(self, window):
         """更新窗口信息"""
-        if window != None:
+        if window is not None:
             for win in self._window_list:
                 if window == win:
                     for attr in win._attrs:
@@ -162,9 +162,9 @@ class WindowManager(BaseManager):
         for window in self._window_list:
             # 修复attached_window的部分信息
             self._update_window_info(window.attached_window)
-        if self._current_window != None:
+        if self._current_window is not None:
             self._update_window_info(self._current_window)
-        if self._current_input_target != None:
+        if self._current_input_target is not None:
             self._update_window_info(self._current_input_target)
 
     def get_screen_size(self):
@@ -199,7 +199,7 @@ class WindowManager(BaseManager):
 
     def _get_windows_data(self):
         """获取windows数据并解析"""
-        result = self._device.adb.run_shell_cmd("dumpsys window windows")
+        result = self._device.adb.run_shell_cmd("dumpsys window")
         result = result.replace("\r", "")
         # print result
         windows = []
@@ -247,7 +247,7 @@ class WindowManager(BaseManager):
                 else:
                     Log.w("WindowManager", line)
                     self._current_window = None
-            elif "mInputMethodTarget" in line:
+            elif "mInputMethodTarget" in line or "imeInputTarget" in line:
                 ret = p2.search(line)
                 self._current_input_target = Window(
                     self,
@@ -275,7 +275,7 @@ class WindowManager(BaseManager):
                 else:
                     items = line.split(" ")
                     for item in items:
-                        if not "=" in item:
+                        if "=" not in item:
                             continue
                         pos = item.find("=")
                         key = item[:pos]
