@@ -307,7 +307,7 @@ class MainFrame(wx.Frame):
         self.vsizer1.Add(self.label9, flag=wx.LEFT | wx.TOP, border=10)
 
         self.hsizer.Add(self.vsizer1)
-        self.hsizer.AddSpacer(20)
+        self.hsizer.AddSpacer(10)
 
         self.vsizer2 = wx.BoxSizer(wx.VERTICAL)
 
@@ -345,7 +345,7 @@ class MainFrame(wx.Frame):
         self.vsizer3.Add(self.btn_set_text, flag=wx.LEFT | wx.TOP, border=10)
 
         self.hsizer.Add(self.vsizer3)
-        self.hsizer.AddSpacer(20)
+        self.hsizer.AddSpacer(10)
 
         self.vsizer4 = wx.BoxSizer(wx.VERTICAL)
 
@@ -378,7 +378,7 @@ class MainFrame(wx.Frame):
         self.vsizer5.Add(self.label16, flag=wx.LEFT | wx.TOP, border=10)
 
         self.hsizer.Add(self.vsizer5)
-        self.hsizer.AddSpacer(20)
+        self.hsizer.AddSpacer(10)
 
         self.vsizer6 = wx.BoxSizer(wx.VERTICAL)
 
@@ -407,7 +407,7 @@ class MainFrame(wx.Frame):
         self.vsizer7.Add(self.label18, flag=wx.LEFT | wx.TOP, border=10)
 
         self.hsizer.Add(self.vsizer7)
-        self.hsizer.AddSpacer(20)
+        self.hsizer.AddSpacer(10)
 
         self.vsizer8 = wx.BoxSizer(wx.VERTICAL)
 
