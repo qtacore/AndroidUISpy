@@ -17,11 +17,8 @@
 """
 
 import wx
+
 from ui import mainframe
-
-
-# reload(sys)
-# sys.setdefaultencoding('utf8')
 
 
 class AndroidUISpyApp(wx.App):

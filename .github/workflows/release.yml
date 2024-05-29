@@ -31,7 +31,7 @@ jobs:
     strategy:
       max-parallel: 3
       matrix:
-        python-version: [2.7]
+        python-version: [3.11]
         os: [windows-latest, macOS-latest]
     steps:
       - name: Checkout code

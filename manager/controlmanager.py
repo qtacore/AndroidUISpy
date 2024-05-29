@@ -111,8 +111,6 @@ class ControlManager(BaseManager):
             if not result[key]:
                 result.pop(key)
                 continue
-            if not "Visible" in result[key]:
-                print(result[key])
             if not result[key]["Visible"]:
                 # 过滤掉不可见的窗口
                 print("ignor window %s" % key)
@@ -125,7 +123,7 @@ class ControlManager(BaseManager):
             ret = pattern.match(key)
             if ret:
                 window_title = ret.group(1)
-            if not window_title in output_result:
+            if window_title not in output_result:
                 output_result[window_title] = [process_name]
             output_result[window_title].append(result.pop(key))
 
@@ -133,11 +131,12 @@ class ControlManager(BaseManager):
 
     def get_control_tree(self):
         """获取当前需要获取的所有控件树列表"""
+        print("get_control_tree")
         process_list = []  # 已经抓取过控件树的进程列表
         self._window_manager.update()
         self._activity_manager.update()
         current_window = self._window_manager.get_current_window()
-        if current_window == None:
+        if current_window is None:
             # 获取当前Activity
             current_activity = self._device._send_command("GetCurrentActivity")
             self._window_manager.update()
@@ -148,7 +147,7 @@ class ControlManager(BaseManager):
             else:
                 raise RuntimeError("find window %s failed" % current_activity)
         package_name = current_window.package_name  # 只获取该包名对应的窗口
-        if package_name == None:
+        if package_name is None:
             raise RuntimeError("get %s package name failed" % current_window)
 
         result = {}
@@ -157,7 +156,7 @@ class ControlManager(BaseManager):
             """更新控件树"""
             try:
                 control_tree = self._get_control_tree(process_name)
-            except:
+            except Exception:
                 Log.ex("ControlManager", "get control tree in %s failed" % process_name)
                 return
             result.update(control_tree)  # 相同窗口名的窗口必然在同一进程中，所以不会冲突
@@ -165,7 +164,7 @@ class ControlManager(BaseManager):
 
         current_process = self._get_window_process(current_window)
 
-        if current_process == None:
+        if current_process is None:
             Log.w("ControlManager", "get process of %s failed" % current_window)
             current_process = package_name
         result = self._get_control_tree(current_process)  # 先获取当前窗口所在进程中的所有控件树
@@ -191,7 +190,7 @@ class ControlManager(BaseManager):
                 if window.title in result:
                     continue
                 # 不在当前进程中，尝试在主进程中查找
-                if not package_name in process_list:
+                if package_name not in process_list:
                     update_control_tree(package_name)
                     if window.title in result:
                         continue
@@ -201,7 +200,7 @@ class ControlManager(BaseManager):
                 for process in all_process_list:
                     if (
                         process["proc_name"].startswith(package_name + ":")
-                        and not process["proc_name"] in process_list
+                        and process["proc_name"] not in process_list
                     ):
                         target_process_list.append(process["proc_name"])
                 for process_name in target_process_list:
@@ -213,7 +212,7 @@ class ControlManager(BaseManager):
                 print("popup", window)
                 process_name = self._get_window_process(window)
                 # print process_name
-                if process_name == None:
+                if process_name is None:
                     Log.w(
                         "ControlManager",
                         "find process of window %s failed" % window.title,
@@ -222,7 +221,7 @@ class ControlManager(BaseManager):
                         if it["proc_name"] == window.package_name or it[
                             "proc_name"
                         ].startswith(window.package_name + ":"):
-                            if not it["proc_name"] in process_list:
+                            if it["proc_name"] not in process_list:
                                 update_control_tree(it["proc_name"])
                     continue
                 if process_name in process_list:

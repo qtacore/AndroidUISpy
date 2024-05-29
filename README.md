@@ -7,28 +7,27 @@
 * Root设备中可以探测任意应用的控件
 * 非Root设备中只能探测debug应用的控件
 
-
 ## PREPARE ENVIRONMENT
 
 1. `cd $project_root`
-2. `virtualenv .env --python=python2.7`
+2. `python3 -m virtualenv .env3`
 3. Windows:  
-    `.env\Scripts\activate.bat`  
+    `.env3\Scripts\activate.bat`
     Others:  
-    `source .env/bin/activate`
-3. `pip install -r requirements.txt`
-
+    `source .env3/bin/activate`
+4. `pip install -r requirements.txt`
 
 ## HOW TO DEBUG
 
 ```bash
+$ export PYTHONPATH=.
 $ python ui/app.py
 ```
 
 ## HOW TO BUILD
 
 ```bash
-$ python build.py ${versions}(2.5.1.0)
+$ python build.py ${versions}(3.0.0)
 ```
 
 ## HOW TO RELEASE
@@ -42,19 +41,19 @@ $ git push origin ${version}
 
 * 如果macos上执行python脚本遇到以下报错：
 
-
-> This program needs access to the screen. Please run with a
+```
+This program needs access to the screen. Please run with a
 Framework build of python, and only when you are logged in
 on the main display of your Mac.
-
-
-可以将以下内容写入文件：`.env/bin/python`
-
 ```
+
+可以将以下内容写入文件：`.env3/bin/python`
+
+```bash
 #!/bin/bash
 
 # what real Python executable to use
-PYVER=2.7
+PYVER=3.11
 PYTHON=/System/Library/Frameworks/Python.framework/Versions/$PYVER/bin/python$PYVER
 
 # find the root of the virtualenv, it should be the parent of the dir this script is in
@@ -65,5 +64,4 @@ export PYTHONHOME=$ENV
 exec $PYTHON "$@"
 ```
 
-并添加可以执行权限：`chmod 775 .env/bin/python`
-
+并添加可以执行权限：`chmod 775 .env3/bin/python`
