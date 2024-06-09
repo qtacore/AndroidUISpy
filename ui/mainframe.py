@@ -13,66 +13,36 @@
 # governing permissions and limitations under the License.
 #
 
-"""主界面
-"""
-
+import io
 import os
-import re
 import sys
-import tempfile
 import threading
 import time
+
 import wx
-import wx.adv
 
 from PIL import Image
-
 from qt4a.androiddriver.adb import ADB
 from qt4a.androiddriver.devicedriver import DeviceDriver
+from qt4a.androiddriver.util import ControlExpiredError
 
+from manager.controlmanager import EnumWebViewType, ControlManager, WebView
 from manager.devicemanager import DeviceManager
 from manager.windowmanager import WindowManager
-from manager.controlmanager import ControlManager, WebView
 from utils import run_in_thread
-from utils.exceptions import ControlNotFoundError
 from utils.logger import Log
 from utils.workthread import WorkThread
 
-# root_dir = os.path.dirname(os.path.abspath(__file__))
-
-
-def create(parent):
-    return MainFrame(parent)
-
-
-def log_uncaught_exceptions(ex_cls, ex, tb):
-    import traceback
-
-    err_msg = "".join(traceback.format_tb(tb))
-    msg = str(ex)
-    # if isinstance(msg, unicode): msg = msg.encode('utf8')
-    if isinstance(msg, str):
-        msg = msg
-    err_msg += msg
-    if not isinstance(err_msg, str):
-        err_msg = err_msg.decode("utf8")
-    err_msg += "\n"
-    Log.e("UncaughtException", err_msg)
-    dlg = wx.MessageDialog(
-        None, err_msg, "AndroidUISpy出现异常", style=wx.OK | wx.ICON_ERROR
-    )
-    dlg.ShowModal()
-    dlg.Destroy()
-
-
-sys.excepthook = log_uncaught_exceptions
-
-default_size = [1000, 700]
+default_size = [1360, 800]
 
 try:
     from version import version_info
 except ImportError:
     version_info = "v3.0.0"
+
+
+def create(parent):
+    return MainFrame(parent)
 
 
 def run_in_main_thread(func):
@@ -88,21 +58,34 @@ class MainFrame(wx.Frame):
     """ """
 
     def __init__(self, parent):
-        self._adapt_window_size()
+        self._window_size = self._get_window_size()
         self._init_ctrls(parent)
+        self._enable_inspect = False
+        self._tree_list = []
+        self._select_device = None
+        self._device_host = None
+        self._scale_rate = 1  # 截图缩放比例
+        self._mouse_move_enabled = False
+        self._image_path = None
+        self._device_manager = DeviceManager()
+        self._device_manager.register_callback(
+            self.on_device_inserted, self.on_device_removed
+        )
         self._work_thread = WorkThread()
+        self.Bind(wx.EVT_SIZE, self.on_resize)
 
-    def _adapt_window_size(self):
-        global default_size
+    def _get_window_size(self):
+        width, height = default_size
         screen_width, screen_height = wx.DisplaySize()
         Log.i(
             self.__class__.__name__,
             "Screen size: %d x %d" % (screen_width, screen_height),
         )
-        if screen_height >= 1000:
-            default_size[1] = int(screen_height * 0.8)
-            default_size[0] = int(default_size[1] * 10 / 7)
-        Log.i(self.__class__.__name__, "Window size: %d x %d" % tuple(default_size))
+        if screen_height > 1000:
+            height = screen_height - 100
+            width = min(screen_width - 100, default_size[0] * height // default_size[1])
+        Log.i(self.__class__.__name__, "Window size: %d x %d" % (width, height))
+        return width, height
 
     def _init_ctrls(self, prnt):
         # generated method, don't edit
@@ -113,338 +96,249 @@ class MainFrame(wx.Frame):
             name="",
             parent=prnt,
             pos=wx.Point(0, 0),
-            size=wx.Size(*default_size),
+            size=wx.Size(*self._window_size),
             style=wx.DEFAULT_FRAME_STYLE,
             title="AndroidUISpy " + version_info,
         )
-        #         self.icon = wx.Icon(os.path.join(os.getcwd(), "res", "magent.ico"), wx.BITMAP_TYPE_ICO)
-        #         self.SetIcon(self.icon)
-
-        # self.window1 = wx.Window(
-        #     id=wx.ID_ANY,
-        #     name="window1",
-        #     parent=self,
-        #     pos=wx.Point(0, 0),
-        #     size=wx.Size(*default_size),
-        #     style=0,
-        # )
 
         self.Bind(wx.EVT_CLOSE, self.on_close)
-
         self.statusbar = self.CreateStatusBar()
         # 将状态栏分割为3个区域,比例为1:2:3
         self.statusbar.SetFieldsCount(3)
         self.statusbar.SetStatusWidths([-3, -2, -1])
 
-        self.panel = wx.Panel(self, size=default_size)
-        font = wx.SystemSettings.GetFont(wx.SYS_SYSTEM_FONT)
-        font.SetPointSize(9)
-        self.vbox = wx.BoxSizer(wx.VERTICAL)
-        self.hbox1 = wx.BoxSizer(wx.HORIZONTAL)
-
-        # ----------------------------- 上部区域 ---------------------------------------
-
-        self.btn_inspect = wx.Button(
-            self.panel, label="+", name="btn_inspect", size=wx.Size(30, 30)
+        self.panel = wx.Panel(
+            self, size=(self._window_size[0] - 20, self._window_size[1] - 70)
         )
-        self.btn_inspect.SetFont(font)
+        self.font = wx.SystemSettings.GetFont(wx.SYS_SYSTEM_FONT)
+        self.font.SetPointSize(9)
+
+        main_panel_width = 900
+        main_panel_height = self.panel.Size[1]
+        self.main_panel = wx.Panel(
+            self.panel, size=(main_panel_width, main_panel_height)
+        )
+
+        device_panel_height = 90
+        property_panel_height = 130
+        device_panel = wx.Panel(
+            self.main_panel, size=(main_panel_width, device_panel_height)
+        )
+        self._init_device_panel(device_panel)
+
+        self._tree_panel_width = main_panel_width
+        self._tree_panel_height = (
+            main_panel_height - device_panel_height - property_panel_height
+        )
+        self.tree_panel = wx.Panel(
+            self.main_panel,
+            pos=(0, device_panel_height),
+            size=(self._tree_panel_width, self._tree_panel_height),
+        )
+
+        self.property_panel = wx.Panel(
+            self.main_panel,
+            pos=(0, main_panel_height - property_panel_height),
+            size=(main_panel_width, property_panel_height),
+        )
+        self._init_property_panel(self.property_panel)
+
+        self.screen_panel = wx.Panel(
+            self.panel,
+            pos=(main_panel_width, 5),
+            size=(self.panel.Size[0] - main_panel_width, self.main_panel.Size[1]),
+        )
+        # self.screen_panel.SetBackgroundColour(wx.BLUE)
+        self._init_screen_panel(self.screen_panel)
+
+    def _init_device_panel(self, panel):
+        self.btn_inspect = wx.Button(
+            panel, label="+", name="btn_inspect", pos=(5, 5), size=wx.Size(20, 20)
+        )
+        self.btn_inspect.SetFont(self.font)
         self.btn_inspect.Bind(wx.EVT_BUTTON, self.on_inspect_btn_click)
         self.btn_inspect.Enable(False)
-        self.hbox1.Add(self.btn_inspect, flag=wx.LEFT | wx.RIGHT, border=10)
 
-        self.label1 = wx.StaticText(self.panel, label="设备ID:")
-        self.hbox1.Add(self.label1, flag=wx.LEFT | wx.RIGHT, border=10)
-
-        self.cb_device = wx.ComboBox(self.panel, wx.ID_ANY, size=(-1, -1))
+        wx.StaticText(panel, label="设备ID:", pos=(40, 7))
+        self.cb_device = wx.ComboBox(panel, wx.ID_ANY, pos=(100, 5), size=(200, 20))
         self.cb_device.Bind(wx.EVT_COMBOBOX, self.on_select_device)
-        self.hbox1.Add(self.cb_device, proportion=1, flag=wx.LEFT | wx.RIGHT, border=10)
 
-        self.btn_refresh = wx.Button(self.panel, label="刷新", name="btn_refresh")
+        self.btn_refresh = wx.Button(
+            panel, label="刷新", name="btn_refresh", pos=(310, 5), size=(50, 20)
+        )
         self.btn_refresh.Enable(False)
         self.btn_refresh.Bind(wx.EVT_BUTTON, self.on_refresh_btn_click)
-        self.hbox1.Add(self.btn_refresh, flag=wx.RIGHT, border=10)
 
-        self.label2 = wx.StaticText(self.panel, label="选择Activity: ")
-        self.hbox1.Add(self.label2, flag=wx.RIGHT, border=10)
-
-        self.cb_activity = wx.ComboBox(self.panel, id=wx.ID_ANY, size=(-1, -1))
+        wx.StaticText(self.panel, label="选择Activity: ", pos=(400, 7))
+        self.cb_activity = wx.ComboBox(
+            panel, id=wx.ID_ANY, pos=(500, 5), size=(300, 20)
+        )
         self.cb_activity.Bind(wx.EVT_COMBOBOX, self.on_select_window)
         self.cb_activity.Bind(wx.EVT_COMBOBOX_DROPDOWN, self.on_window_list_dropdown)
-        self.hbox1.Add(self.cb_activity, proportion=2, flag=wx.LEFT, border=10)
 
         self.btn_getcontrol = wx.Button(
-            self.panel, label="获取控件", name="btn_getcontrol"
+            panel, label="获取控件", name="btn_getcontrol", pos=(810, 5), size=(75, 20)
         )
         self.btn_getcontrol.Bind(wx.EVT_BUTTON, self.on_getcontrol_btn_click)
         self.btn_getcontrol.Enable(False)
-        self.hbox1.Add(self.btn_getcontrol, flag=wx.LEFT | wx.RIGHT, border=10)
 
-        self.vbox.Add(
-            self.hbox1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=5
-        )
-        self.vbox.Add((-1, 10))
-
-        self.sb1 = wx.StaticBox(self.panel, label="高级选项", size=(-1, 100))
-        top_sizer = wx.StaticBoxSizer(self.sb1, wx.VERTICAL)
-        self.st_hbox = wx.BoxSizer(wx.HORIZONTAL)
-        top_sizer.Add(self.st_hbox, 0, wx.CENTER)
-
+        wx.StaticBox(panel, label="高级选项", pos=(5, 30), size=(890, 50))
         self.rb_local_device = wx.RadioButton(
-            self.panel, label="本地设备", size=wx.DefaultSize
+            panel, label="本地设备", pos=(10, 52), size=wx.DefaultSize
         )
         self.rb_local_device.SetValue(True)
         self.rb_local_device.Bind(wx.EVT_RADIOBUTTON, self.on_local_device_selected)
-        self.st_hbox.Add(self.rb_local_device, flag=wx.LEFT, border=10)
 
         self.rb_remote_device = wx.RadioButton(
-            self.panel, label="远程设备", size=wx.DefaultSize
+            panel, label="远程设备", pos=(90, 52), size=wx.DefaultSize
         )
         self.rb_remote_device.Bind(wx.EVT_RADIOBUTTON, self.on_remote_device_selected)
-        self.st_hbox.Add(self.rb_remote_device, flag=wx.LEFT, border=10)
-        self.st_hbox.AddSpacer(100)
 
-        self.label3 = wx.StaticText(
-            self.panel, label="远程设备主机名: ", size=wx.DefaultSize
+        wx.StaticText(
+            panel, label="远程设备主机名: ", pos=(160, 52), size=wx.DefaultSize
         )
-        self.st_hbox.Add(self.label3, flag=wx.LEFT, border=10)
-
-        self.tc_dev_host = wx.TextCtrl(self.panel, size=(200, -1))
+        self.tc_dev_host = wx.TextCtrl(panel, pos=(255, 50), size=(150, 20))
         self.tc_dev_host.Enable(False)
-        self.tc_dev_host.SetToolTip(wx.ToolTip("输入要调试守在所在的设备主机名"))
-        self.st_hbox.Add(self.tc_dev_host, proportion=1, flag=wx.LEFT, border=10)
-
+        self.tc_dev_host.SetToolTip(wx.ToolTip("输入要调试设备所在的主机名"))
         self.btn_set_device_host = wx.Button(
-            self.panel, label="确定", size=wx.Size(60, 26)
+            panel, label="确定", pos=(410, 50), size=wx.Size(60, 20)
         )
         self.btn_set_device_host.Enable(False)
         self.btn_set_device_host.Bind(wx.EVT_BUTTON, self.on_set_device_host_btn_click)
-        self.st_hbox.Add(self.btn_set_device_host, flag=wx.LEFT, border=10)
-        self.st_hbox.AddSpacer(100)
 
         self.cb_auto_refresh = wx.CheckBox(
-            self.panel, label="自动刷新屏幕", size=wx.DefaultSize
+            panel, label="自动刷新屏幕", pos=(500, 52), size=wx.DefaultSize
         )
         self.cb_auto_refresh.Bind(wx.EVT_CHECKBOX, self.on_auto_fresh_checked)
-        self.st_hbox.Add(self.cb_auto_refresh, flag=wx.LEFT, border=10)
-
-        self.label4 = wx.StaticText(self.panel, label="刷新频率: ", size=wx.DefaultSize)
-        self.st_hbox.Add(self.label4, flag=wx.LEFT, border=5)
-
-        self.tc_refresh_interval = wx.TextCtrl(self.panel, size=wx.Size(40, 26))
+        wx.StaticText(panel, label="刷新频率: ", pos=(610, 52), size=wx.DefaultSize)
+        self.tc_refresh_interval = wx.TextCtrl(
+            panel, pos=(670, 50), size=wx.Size(30, 20)
+        )
         self.tc_refresh_interval.SetValue("1")
-        self.st_hbox.Add(self.tc_refresh_interval, flag=wx.LEFT, border=10)
-
-        self.label5 = wx.StaticText(self.panel, label="秒", size=wx.DefaultSize)
-        self.st_hbox.Add(self.label5, flag=wx.LEFT, border=10)
+        wx.StaticText(panel, label="秒", pos=(710, 52), size=wx.DefaultSize)
 
         self.refresh_timer = wx.Timer(self)
         self.Bind(
             wx.EVT_TIMER, self.on_refresh_timer, self.refresh_timer
         )  # 绑定一个计时器
 
-        top_sizer.AddSpacer(10)
-        self.vbox.Add(
-            top_sizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=10
+    def _init_property_panel(self, panel):
+        wx.StaticBox(
+            panel,
+            label="控件属性",
+            pos=(5, 5),
+            size=(panel.Size[0] - 10, panel.Size[1] - 4),
         )
-        self.vbox.Add((-1, 10))
+        wx.StaticText(panel, label="ID", pos=(15, 27), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Type", pos=(15, 52), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Visible", pos=(15, 77), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Text", pos=(15, 102), size=wx.DefaultSize)
 
-        # ------------------------------- 中部区域 -----------------------------------
-        self.mid_hbox = wx.BoxSizer(wx.HORIZONTAL)
-        self.mid_vbox1 = wx.BoxSizer(wx.VERTICAL)
-        # self.mid_vbox2 = wx.BoxSizer(wx.VERTICAL)
-
-        # 可能存在多个控件树
-        self._tree_list = []
-
-        self._main_width = default_size[0] - 20
-        self._main_height = default_size[1] - 380
-
-        self.main_panel = wx.Panel(
-            self.panel, pos=(10, 100), size=(self._main_width, self._main_height)
-        )
-
-        self.image = wx.StaticBitmap(self.main_panel)
-        self.image.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
-
-        self.mask_panel = CanvasPanel(parent=self.main_panel)
-        self.mask_panel.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
-
-        self.mid_vbox1.Add(self.main_panel, 0, wx.CENTRE)
-        # self.mid_vbox2.Add(self.mask_panel, 0, wx.CENTRE)
-
-        self.mid_hbox.Add(self.mid_vbox1, 0, wx.CENTRE)
-        # self.mid_hbox.Add(self.mid_vbox2, 0, wx.CENTRE)
-
-        self.vbox.Add(
-            self.mid_hbox, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=10
-        )
-        # self.vbox.Add((-1, 25))
-
-        # -------------------------------- 下部区域 ------------------------------------
-
-        self.sb2 = wx.StaticBox(self.panel, label="控件属性", size=(-1, -1))
-        if default_size[0] > 1500:
-            space = int((default_size[0] - 1500) / 3)
-        else:
-            space = 0
-        Log.i(self.__class__.__name__, "Space is %d" % space)
-        self.bsizer = wx.StaticBoxSizer(self.sb2, orient=wx.VERTICAL)
-
-        self.hsizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.vsizer1 = wx.BoxSizer(wx.VERTICAL)
-
-        self.label6 = wx.StaticText(self.panel, label="ID", size=wx.DefaultSize)
-        self.vsizer1.Add(self.label6, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label7 = wx.StaticText(self.panel, label="Type", size=wx.DefaultSize)
-        self.vsizer1.Add(self.label7, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label8 = wx.StaticText(self.panel, label="Visible", size=wx.DefaultSize)
-        self.vsizer1.Add(self.label8, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label9 = wx.StaticText(self.panel, label="Text", size=wx.DefaultSize)
-        self.vsizer1.Add(self.label9, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.hsizer.Add(self.vsizer1)
-        self.hsizer.AddSpacer(10)
-
-        self.vsizer2 = wx.BoxSizer(wx.VERTICAL)
-
-        self.tc_id = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer2.Add(self.tc_id, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.tc_type = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer2.Add(self.tc_type, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.tc_visible = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer2.Add(self.tc_visible, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.tc_text = wx.TextCtrl(self.panel, size=(200, -1))
+        self.tc_id = wx.TextCtrl(panel, pos=(65, 25), size=(120, 20))
+        self.tc_type = wx.TextCtrl(panel, pos=(65, 50), size=(120, 20))
+        self.tc_visible = wx.TextCtrl(panel, pos=(65, 75), size=(120, 20))
+        self.tc_text = wx.TextCtrl(panel, pos=(65, 100), size=(120, 20))
         self.tc_text.Enable(False)
         self.tc_text.Bind(wx.EVT_TEXT, self.on_node_text_changed)
-        self.vsizer2.Add(self.tc_text, flag=wx.LEFT | wx.TOP, border=12)
 
-        self.hsizer.Add(self.vsizer2)
-        self.hsizer.AddSpacer(space)
-
-        self.vsizer3 = wx.BoxSizer(wx.VERTICAL)
-
-        self.label10 = wx.StaticText(self.panel, label="HashCode", size=wx.DefaultSize)
-        self.vsizer3.Add(self.label10, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label11 = wx.StaticText(self.panel, label="Rect", size=wx.DefaultSize)
-        self.vsizer3.Add(self.label11, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label12 = wx.StaticText(self.panel, label="Enabled", size=wx.DefaultSize)
-        self.vsizer3.Add(self.label12, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.btn_set_text = wx.Button(self.panel, label="修改文本", size=wx.DefaultSize)
+        wx.StaticText(panel, label="HashCode", pos=(210, 27), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Rect", pos=(210, 52), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Enabled", pos=(210, 77), size=wx.DefaultSize)
+        self.btn_set_text = wx.Button(
+            panel, label="修改文本", pos=(190, 100), size=(70, 20)
+        )
         self.btn_set_text.Enable(False)
         self.btn_set_text.Bind(wx.EVT_BUTTON, self.on_set_text_btn_click)
-        self.vsizer3.Add(self.btn_set_text, flag=wx.LEFT | wx.TOP, border=10)
+        self.cb_show_hex = wx.CheckBox(panel, label="显示16进制", pos=(280, 102))
 
-        self.hsizer.Add(self.vsizer3)
-        self.hsizer.AddSpacer(10)
+        self.tc_hashcode = wx.TextCtrl(panel, pos=(280, 25), size=(120, 20))
+        self.tc_rect = wx.TextCtrl(panel, pos=(280, 50), size=(120, 20))
+        self.tc_enable = wx.TextCtrl(panel, pos=(280, 75), size=(120, 20))
 
-        self.vsizer4 = wx.BoxSizer(wx.VERTICAL)
+        wx.StaticText(panel, label="Clickable", pos=(420, 27), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Checkable", pos=(420, 52), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Checked", pos=(420, 77), size=wx.DefaultSize)
+        self.tc_clickable = wx.TextCtrl(panel, pos=(490, 25), size=(120, 20))
+        self.tc_checkable = wx.TextCtrl(panel, pos=(490, 50), size=(120, 20))
+        self.tc_checked = wx.TextCtrl(panel, pos=(490, 75), size=(120, 20))
 
-        self.tc_hashcode = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer4.Add(self.tc_hashcode, flag=wx.LEFT | wx.TOP, border=12)
+        wx.StaticText(panel, label="ProcessName", pos=(640, 27), size=wx.DefaultSize)
+        wx.StaticText(panel, label="Descriptions", pos=(640, 52), size=wx.DefaultSize)
+        self.tc_process_name = wx.TextCtrl(panel, pos=(730, 25), size=(150, 20))
+        self.tc_desc = wx.TextCtrl(panel, pos=(730, 50), size=(150, 20))
 
-        self.tc_rect = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer4.Add(self.tc_rect, flag=wx.LEFT | wx.TOP, border=12)
+    def _init_screen_panel(self, panel):
+        self.image = wx.StaticBitmap(panel)
+        self.image.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
 
-        self.tc_enable = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer4.Add(self.tc_enable, flag=wx.LEFT | wx.TOP, border=12)
+        self.mask_panel = CanvasPanel(parent=panel)
+        self.mask_panel.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse_move)
 
-        self.cb_show_hex = wx.CheckBox(self.panel, label="显示16进制", size=(150, -1))
-        self.vsizer4.Add(self.cb_show_hex, flag=wx.LEFT | wx.TOP, border=12)
+    def on_close(self, event):
+        """ """
+        import atexit
 
-        self.hsizer.Add(self.vsizer4)
-        self.hsizer.AddSpacer(space)
+        atexit._exithandlers = []  # 禁止退出时弹出错误框
+        event.Skip()
 
-        self.vsizer5 = wx.BoxSizer(wx.VERTICAL)
-        self.label13 = wx.StaticText(self.panel, label="Clickable", size=wx.DefaultSize)
-        self.vsizer5.Add(self.label13, flag=wx.LEFT | wx.TOP, border=10)
+    def on_resize(self, event):
+        prev_window_size = self._window_size
+        window_size = self.GetSize()
+        if (
+            abs(window_size[0] - prev_window_size[0]) <= 2
+            and abs(window_size[1] - prev_window_size[1]) <= 2
+        ):
+            event.Skip()
+            return
 
-        self.label14 = wx.StaticText(self.panel, label="Checkable", size=wx.DefaultSize)
-        self.vsizer5.Add(self.label14, flag=wx.LEFT | wx.TOP, border=10)
+        if window_size[0] < default_size[0] or window_size[1] < default_size[1]:
+            self.SetSize(
+                (
+                    max(window_size[0], default_size[0]),
+                    max(window_size[1], default_size[1]),
+                )
+            )
+            event.Skip()
+            return
 
-        self.label15 = wx.StaticText(self.panel, label="Checked", size=wx.DefaultSize)
-        self.vsizer5.Add(self.label15, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label16 = wx.StaticText(self.panel, label="", size=wx.DefaultSize) # 占位
-        self.vsizer5.Add(self.label16, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.hsizer.Add(self.vsizer5)
-        self.hsizer.AddSpacer(10)
-
-        self.vsizer6 = wx.BoxSizer(wx.VERTICAL)
-
-        self.tc_clickable = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer6.Add(self.tc_clickable, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.tc_checkable = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer6.Add(self.tc_checkable, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.tc_checked = wx.TextCtrl(self.panel, size=(200, -1))
-        self.vsizer6.Add(self.tc_checked, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.hsizer.Add(self.vsizer6)
-        self.hsizer.AddSpacer(space)
-
-        self.vsizer7 = wx.BoxSizer(wx.VERTICAL)
-
-        self.label17 = wx.StaticText(
-            self.panel, label="ProcessName", size=wx.DefaultSize
+        self._window_size = window_size
+        width_delta = self._window_size[0] - prev_window_size[0]
+        height_delta = self._window_size[1] - prev_window_size[1]
+        self.panel.SetSize(
+            (self.panel.Size[0] + width_delta, self.panel.Size[1] + height_delta)
         )
-        self.vsizer7.Add(self.label17, flag=wx.LEFT | wx.TOP, border=10)
-
-        self.label18 = wx.StaticText(
-            self.panel, label="Descriptions", size=wx.DefaultSize
+        if height_delta:
+            self.main_panel.SetSize(
+                (self.main_panel.Size[0], self.main_panel.Size[1] + height_delta)
+            )
+            self.tree_panel.SetSize(
+                (self.tree_panel.Size[0], self.tree_panel.Size[1] + height_delta)
+            )
+            self.tree.SetSize((self.tree.Size[0], self.tree.Size[1] + height_delta))
+            self.property_panel.SetPosition(
+                (0, self.property_panel.Position[1] + height_delta)
+            )
+        self.screen_panel.SetSize(
+            (self.panel.Size[0] - self.main_panel.Size[0], self.main_panel.Size[1])
         )
-        self.vsizer7.Add(self.label18, flag=wx.LEFT | wx.TOP, border=10)
 
-        self.hsizer.Add(self.vsizer7)
-        self.hsizer.AddSpacer(10)
+        if self._image_path and os.path.isfile(self._image_path):
+            image = Image.open(self._image_path)
+            self._show_image(image)
 
-        self.vsizer8 = wx.BoxSizer(wx.VERTICAL)
+        event.Skip()
 
-        self.tc_process_name = wx.TextCtrl(self.panel, size=(250, -1))
-        self.vsizer8.Add(self.tc_process_name, flag=wx.LEFT | wx.TOP, border=12)
+    def on_select_window(self, event):
+        """选择了一个窗口"""
+        window_title = self.cb_activity.GetValue()
+        if window_title.endswith(" "):
+            window_title = window_title.strip()
+            run_in_main_thread(self.cb_activity.SetLabelText)(window_title)
 
-        self.tc_desc = wx.TextCtrl(self.panel, size=(250, -1))
-        self.vsizer8.Add(self.tc_desc, flag=wx.LEFT | wx.TOP, border=12)
-
-        self.hsizer.Add(self.vsizer8)
-        # self.hsizer.AddSpacer(50)
-
-        self.bsizer.Add(self.hsizer, 0, wx.CENTER)
-        self.bsizer.AddSpacer(10)
-        self.vbox.Add(
-            self.bsizer, flag=wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, border=10
-        )
-        self.vbox.Add((-1, 25))
-
-        self.panel.SetSizer(self.vbox)
-
-        self._device_manager = DeviceManager()
-        self._device_manager.register_callback(
-            self.on_device_inserted, self.on_device_removed
-        )
-        # self._viewserver_manager = None
-        self._window_manager = None
-        self._control_manager = None
-        self._device_host = None
-        self._device_list = []
-        self._select_device = None
-        self._device = None
-        self._screen_size = None
-        self._scale_rate = 1  # 截图缩放比例
-        self._mouse_move_enabled = False
-        self._enable_inspect = False
-        self._chrome = None
+    def on_window_list_dropdown(self, event):
+        """ """
+        cur_sel = self.cb_activity.GetSelection()
+        self.cb_activity.Select(cur_sel)
 
     def on_device_inserted(self, device_name):
         """新设备插入回调"""
@@ -461,164 +355,6 @@ class MainFrame(wx.Frame):
             if it == device_name:
                 self.cb_device.Delete(index)
                 break
-
-    def on_close(self, event):
-        """ """
-        import atexit
-
-        atexit._exithandlers = []  # 禁止退出时弹出错误框
-        event.Skip()
-
-    @property
-    def tree(self):
-        """当前操作的控件树"""
-        return self._tree_list[self._tree_idx]["tree"]
-
-    @property
-    def root(self):
-        """当前操作的控件树的根"""
-        return self._tree_list[self._tree_idx]["root"]
-
-    def on_auto_fresh_checked(self, event):
-        """选择了自动刷新"""
-        if self.cb_auto_refresh.IsChecked():
-            if not self._device:
-                dlg = wx.MessageDialog(
-                    self, "尚未选择设备", "错误", style=wx.OK | wx.ICON_ERROR
-                )
-                result = dlg.ShowModal()
-                dlg.Destroy()
-                self.cb_auto_refresh.SetValue(False)
-                return
-            sec = self.tc_refresh_interval.GetValue()
-            self.refresh_timer.Start(int(float(sec) * 1000))
-            self.btn_getcontrol.Enable(False)
-            self.rb_local_device.Enable(False)
-            self.rb_remote_device.Enable(False)
-            self.tc_dev_host.Enable(False)
-            self.btn_set_device_host.Enable(False)
-            self.tc_refresh_interval.Enable(False)
-        else:
-            self.refresh_timer.Stop()
-            self.btn_getcontrol.Enable(True)
-            self.rb_local_device.Enable(True)
-            self.rb_remote_device.Enable(True)
-            self.tc_refresh_interval.Enable(True)
-            if self._device_host:
-                self.tc_dev_host.Enable(True)
-                self.btn_set_device_host.Enable(True)
-
-    def on_refresh_timer(self, event):
-        """ """
-        self._work_thread.post_task(self._refresh_device_screenshot, False)
-
-    def on_node_text_changed(self, event):
-        """ """
-        self.btn_set_text.Enable(True)
-
-    def on_set_text_btn_click(self, event):
-        """ """
-        window_title = self.cb_activity.GetValue()
-        hashcode = int(self.tc_hashcode.GetValue(), 16)
-        text = self.tc_text.GetValue()
-        self._control_manager.set_control_text(window_title, hashcode, text)
-        self.statusbar.SetStatusText("设置控件文本成功", 0)
-        time.sleep(0.5)
-        t = threading.Thread(target=self._refresh_device_screenshot, args=(True,))
-        t.setDaemon(True)
-        t.start()
-
-    def _adapt_device_screen(self, width, height, scale_rate):
-        if (
-            self._screen_size
-            and self._screen_size[0] == width
-            and self._screen_size[1] == height
-        ):
-            return
-        scaled_width = int(width * scale_rate)
-        scaled_height = int(height * scale_rate)
-        self.image.SetSize((scaled_width, scaled_height))
-        self.mask_panel.SetSize((scaled_width, scaled_height))
-
-        tree_width = default_size[0] - scaled_width - 60
-        tree_height = self._main_height
-
-        x = default_size[0] - scaled_width - 40
-        y = 0
-        if scaled_width > scaled_height:
-            x = tree_width + 20
-            y = int(scaled_height / 2)  # 居中
-
-        self.image.SetPosition((x, y))
-        self.mask_panel.SetPosition((x, y))
-
-        for i in range(len(self._tree_list)):
-            # 所有控件树都要修改
-            self._tree_list[i]["tree"].SetSize((tree_width, tree_height))
-        self._screen_size = (width, height)
-
-    def _resize_screen_image(self, image):
-        w, h = image.size
-        if w > h:
-            # 横屏情况
-            target_width = int(self._main_width / 2)
-            if target_width < 500:
-                target_width = 500
-            target_height = int((1.0 * target_width / w) * h)
-        else:
-            target_height = int(self._main_height)
-            target_width = int((1.0 * target_height / h) * w)
-        return image.resize((target_width, target_height), Image.LANCZOS)
-
-    def _set_image(self, image_path):
-        try:
-            return self.__set_image(image_path)
-        except:
-            Log.ex("Set image failed")
-
-    def __set_image(self, image_path):
-        """设置图片"""
-        print("set image %s" % image_path)
-        if not os.path.exists(image_path):
-            Log.w(self.__class__.__name__, "Image file %s not exist" % image_path)
-            return
-        if self.cb_auto_refresh.IsChecked():
-            tmp_path = "%d.png" % int(time.time())
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            os.rename(image_path, tmp_path)
-            image_path = tmp_path
-        try:
-            image = Image.open(image_path)
-            image.verify()  # 验证完之后需要重新打开
-            image = Image.open(image_path)
-        except Exception as e:
-            Log.ex("ImageError", image_path, e)
-            return
-
-        temp_path = tempfile.mkstemp(".png")[1]
-        img = self._resize_screen_image(image)
-        img.save(temp_path)
-        screen_width, screen_height = image.size
-        w, h = img.size
-        self._scale_rate = w / screen_width
-        self._adapt_device_screen(screen_width, screen_height, self._scale_rate)
-
-        image = wx.Bitmap(temp_path, wx.BITMAP_TYPE_PNG)
-
-        self.image.SetBitmap(image)
-        self.image.Refresh()
-        self.image.Show()
-        self.mask_panel.Show()
-
-        if self.cb_auto_refresh.IsChecked():
-            os.remove(temp_path)
-            os.remove(image_path)
-
-    def on_inspect_btn_click(self, event):
-        """探测按钮点击回调"""
-        self.btn_inspect.Enable(False)
-        self._enable_inspect = True
 
     @run_in_main_thread
     def on_select_device(self, event):
@@ -649,23 +385,80 @@ class MainFrame(wx.Frame):
         self.btn_refresh.Enable(True)
         self.btn_getcontrol.Enable(True)
 
-    def on_set_device_host_btn_click(self, event):
-        """设置设备主机按钮点击回调"""
-        hostname = self.tc_dev_host.GetValue()
-        if hostname != self._device_host:
-            self.statusbar.SetStatusText("正在检查设备主机: %s……" % hostname, 0)
-            if not self._check_device_host(hostname):
-                dlg = wx.MessageDialog(
-                    self,
-                    "设备主机无法访问！\n请确认设备主机名是否正确，以及网络是否连通",
-                    "设备主机名错误",
-                    style=wx.OK | wx.ICON_ERROR,
+    def on_getcontrol_btn_click(self, event):
+        """点击获取控件按钮"""
+        self.btn_getcontrol.Enable(False)
+        if not self.cb_activity.GetValue():
+            # 先刷新窗口列表
+            self.on_refresh_btn_click(None)
+
+        if self.cb_activity.GetValue() == "Keyguard":
+            # 锁屏状态
+            dlg = wx.MessageDialog(
+                self,
+                "设备：%s 处于锁屏状态，请手动解锁后点击OK按钮"
+                % self.cb_device.GetValue(),
+                "提示",
+                style=wx.YES_NO | wx.YES_DEFAULT | wx.ICON_QUESTION,
+            )
+            result = dlg.ShowModal()
+            if result == wx.ID_YES:
+                self.on_refresh_btn_click(None)
+            dlg.Destroy()
+
+        self.statusbar.SetStatusText("正在获取控件树……", 0)
+
+        def _update_control_tree():
+            time0 = time.time()
+            try:
+                controls_dict = (
+                    self._control_manager.get_control_tree()
+                )  # self.cb_activity.GetValue().strip(), index
+                if not controls_dict:
+                    return
+            except RuntimeError as e:
+                msg = e.args[0]
+
+                # if not isinstance(msg, str):
+                #     msg = msg.decode("utf8")
+                def _show_dialog():
+                    dlg = wx.MessageDialog(
+                        self, msg, "查找控件失败", style=wx.OK | wx.ICON_ERROR
+                    )
+                    dlg.ShowModal()
+                    dlg.Destroy()
+
+                run_in_main_thread(_show_dialog)()
+                return
+
+            used_time = time.time() - time0
+            run_in_main_thread(
+                lambda: self.statusbar.SetStatusText(
+                    "获取控件树完成，耗时：%s S" % used_time, 0
                 )
-                result = dlg.ShowModal()
-                dlg.Destroy()
-            else:
-                self._device_host = hostname
-                self.statusbar.SetStatusText("检查设备主机: %s 完成" % hostname, 0)
+            )()
+            msg = ""
+            for key in controls_dict:
+                msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
+            Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
+            self._show_control_tree(controls_dict)
+
+        run_in_thread(_update_control_tree)()
+
+        t = threading.Thread(target=self._refresh_device_screenshot)
+        t.setDaemon(True)
+        t.start()
+
+    @run_in_main_thread
+    def _show_control_tree(self, controls_dict):
+        """显示控件树"""
+        self.show_controls(controls_dict)
+
+        self._mouse_move_enabled = True
+        self.btn_inspect.Enable(True)
+        self.tree.SelectItem(self.root)
+        self.tree.SetFocus()
+        self.btn_getcontrol.Enable(True)
 
     def on_refresh_btn_click(self, event):
         """刷新按钮点击回调"""
@@ -674,6 +467,208 @@ class MainFrame(wx.Frame):
         self.show_windows()
         used_time = time.time() - time0
         self.statusbar.SetStatusText("获取窗口列表完成，耗时：%s S" % used_time, 0)
+
+    def show_windows(self):
+        """显示Window列表"""
+        self.cb_activity.Clear()
+        self._control_manager.update()
+        current_window = self._window_manager.get_current_window()
+
+        if current_window is None:
+            dlg = wx.MessageDialog(
+                self,
+                "请确认手机是否出现黑屏或ANR",
+                "无法获取当前窗口",
+                style=wx.OK | wx.ICON_ERROR,
+            )
+            dlg.ShowModal()
+            dlg.Destroy()
+            return
+
+        index = 0
+        last_title = ""
+        for window in self._window_manager.get_window_list():
+            if last_title == window.title:
+                index += 1
+            else:
+                index = 0
+                last_title = window.title
+            idx = self.cb_activity.Append(
+                window.title + " " * index
+            )  # 避免始终选择到第一项
+            data = window.title + (("::%d" % index) if index > 0 else "")
+
+            self.cb_activity.SetClientData(idx, data)
+            if window.hashcode == current_window.hashcode:
+                self.cb_activity.SetSelection(idx)
+                run_in_main_thread(lambda: self.cb_activity.SetLabelText(window.title))
+
+    @property
+    def tree(self):
+        """当前操作的控件树"""
+        return self._tree_list[self._tree_idx]["tree"]
+
+    @property
+    def root(self):
+        """当前操作的控件树的根"""
+        return self._tree_list[self._tree_idx]["root"]
+
+    def show_controls(self, controls_dict):
+        """显示控件树"""
+        self._build_control_trees(controls_dict)
+
+    def switch_control_tree(self, index):
+        """切换控件树"""
+        if index < 0 or index >= len(self._tree_list):
+            return
+        self._tree_idx = index
+        for i in range(len(self._tree_list)):
+            if i == self._tree_idx:
+                self._tree_list[i]["tree"].Show()
+                self.cb_activity.SetValue(self._tree_list[i]["window_title"])
+                self.tc_process_name.SetValue(self._tree_list[i]["process_name"])
+            else:
+                self._tree_list[i]["tree"].Hide()
+
+    def on_tree_node_right_click(self, event):
+        """ """
+        if hasattr(event, "Point"):
+            point = event.Point
+        else:
+            point = event.GetPosition()
+        item, _ = self.tree.HitTest(point)
+        self.tree.PopupMenu(TreeNodePopupMenu(self, item), point)
+        event.Skip()
+
+    def _draw_mask(self, control):
+        """绘制高亮区域"""
+        if not self._scale_rate:
+            return
+        item_data = self.tree.GetItemData(control)
+        rect = item_data["Rect"]
+        p1 = rect["Left"] * self._scale_rate, rect["Top"] * self._scale_rate
+        p2 = (rect["Left"] + rect["Width"]) * self._scale_rate, (
+            rect["Top"] + rect["Height"]
+        ) * self._scale_rate
+        self.mask_panel.draw_rectangle(p1, p2)
+
+    def on_tree_node_click(self, event):
+        """点击控件树节点"""
+        self.cb_show_hex.SetValue(False)
+        item_id = event.GetItem()
+        self._draw_mask(item_id)
+        item_data = self.tree.GetItemData(item_id)
+        self.tc_id.SetValue(self._handle_control_id(item_data["Id"]))
+        if "ConfusedId" in item_data:
+            self.tc_id.SetHint(self._handle_control_id(item_data["ConfusedId"]))
+        else:
+            self.tc_id.SetHint("")
+        self.tc_type.SetValue(item_data["Type"])
+        self.tc_visible.SetValue("True" if item_data["Visible"] else "False")
+        self.tc_text.SetValue("")
+        if "Text" in item_data:
+            self.tc_text.SetValue(item_data["Text"])
+            self.tc_text.Enable(True)
+            self.cb_show_hex.Enable(True)
+        else:
+            self.tc_text.Enable(False)
+            self.cb_show_hex.Enable(False)
+        self.btn_set_text.Enable(False)
+        self.tc_hashcode.SetValue("0x%.8X" % item_data["Hashcode"])
+        rect = "(%s, %s, %s, %s)" % (
+            item_data["Rect"]["Left"],
+            item_data["Rect"]["Top"],
+            item_data["Rect"]["Width"],
+            item_data["Rect"]["Height"],
+        )
+        self.tc_rect.SetValue(rect)
+        self.tc_enable.SetValue("True" if item_data["Enabled"] else "False")
+        if "Clickable" in item_data:
+            self.tc_clickable.SetValue("True" if item_data["Clickable"] else "False")
+        else:
+            self.tc_clickable.SetValue("")
+        if "Checkable" in item_data:
+            self.tc_checkable.SetValue("True" if item_data["Checkable"] else "False")
+        else:
+            self.tc_checkable.SetValue("")
+        if "Checked" in item_data:
+            self.tc_checked.SetValue("True" if item_data["Checked"] else "False")
+        else:
+            self.tc_checked.SetValue("")
+        self.tc_desc.SetValue(item_data["Desc"])
+
+    def _handle_control_id(self, _id):
+        """处理控件ID"""
+        if _id == "NO_ID":
+            _id = "None"
+        elif _id.startswith("id/"):
+            _id = _id[3:]
+        return _id
+
+    def _add_child(self, process_name, tree, parent, child, is_weex_node=False):
+        """添加树形控件节点"""
+        node_name = self._handle_control_id(child["Id"])
+        if is_weex_node:
+            if not child["Type"].startswith("android.") and not child[
+                "Type"
+            ].startswith("com.android."):
+                driver = self._control_manager._get_driver(process_name)
+                try:
+                    node_name = driver.get_object_field_value(
+                        child["Hashcode"], "mTest"
+                    )
+                except Exception as e:
+                    Log.ex("MainFrame", "get field mTest failed")
+                else:
+                    if not node_name:
+                        node_name = "None"
+        elif child["Type"].endswith(".WeexView"):
+            is_weex_node = True
+        node = tree.AppendItem(parent, node_name, data=child)
+        for subchild in child["Children"]:
+            self._add_child(process_name, tree, node, subchild, is_weex_node)
+
+    def _build_control_trees(self, controls_dict):
+        """构建控件树"""
+        for tree in self._tree_list:
+            # 先删除之前创建的控件树
+            tree["root"] = None
+            tree["tree"].DeleteAllItems()
+            tree["tree"].Destroy()
+
+        self._tree_list = []
+        index = -1
+        for idx, key in enumerate(controls_dict.keys()):
+            if index < 0:
+                index = idx
+            process_name = controls_dict[key][0]
+            for i in range(1, len(controls_dict[key])):
+                tree = wx.TreeCtrl(
+                    self.tree_panel,
+                    id=wx.ID_ANY,
+                    pos=(5, 0),
+                    size=(self._tree_panel_width - 10, self._tree_panel_height),
+                )
+                tree_root = controls_dict[key][i]
+                root = tree.AddRoot(
+                    self._handle_control_id(tree_root["Id"]), data=tree_root
+                )
+                for child in tree_root["Children"]:
+                    self._add_child(process_name, tree, root, child)
+                tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_node_click)
+                # tree.Bind(wx.EVT_MOUSE_EVENTS, self.on_tree_mouse_event)
+                tree.Bind(wx.EVT_RIGHT_DOWN, self.on_tree_node_right_click)
+
+                # tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_node_right_click)
+
+                item = {
+                    "process_name": process_name,
+                    "window_title": key,
+                    "tree": tree,
+                    "root": root,
+                }
+                self._tree_list.append(item)
+        self.switch_control_tree(index)
 
     def _take_screen_shot(self, tmp_path, path, use_cmd=True):
         """屏幕截图"""
@@ -702,229 +697,94 @@ class MainFrame(wx.Frame):
         if not os.path.exists(path):
             Log.w("Screenshot", "file not exist")
 
+        # image = Image.open(path)
+        # image = image.rotate(90, expand=True)
+        # image.save(path)
         run_in_main_thread(self._set_image)(path)
 
-    def on_select_window(self, event):
-        """选择了一个窗口"""
-        window_title = self.cb_activity.GetValue()
-        if window_title.endswith(" "):
-            window_title = window_title.strip()
-            run_in_main_thread(self.cb_activity.SetLabelText)(window_title)
-
-    def on_window_list_dropdown(self, event):
-        """ """
-        cur_sel = self.cb_activity.GetSelection()
-        self.cb_activity.Select(cur_sel)
-
-    def _build_control_trees(self, controls_dict):
-        """构建控件树"""
-        for tree in self._tree_list:
-            # 先删除之前创建的控件树
-            tree["root"] = None
-            tree["tree"].DeleteAllItems()
-            tree["tree"].Destroy()
-
-        self._tree_list = []
-        index = -1
-        for idx, key in enumerate(controls_dict.keys()):
-            if index < 0:
-                index = idx
-            process_name = controls_dict[key][0]
-            for i in range(1, len(controls_dict[key])):
-                tree = wx.TreeCtrl(
-                    self.main_panel,
-                    id=wx.ID_ANY,
-                    pos=(5, 0),
-                    size=(600, self._main_height - 20),
-                )
-                tree_root = controls_dict[key][i]
-                root = tree.AddRoot(
-                    self._handle_control_id(tree_root["Id"]), data=tree_root
-                )
-                for child in tree_root["Children"]:
-                    self._add_child(process_name, tree, root, child)
-                tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.on_tree_node_click)
-                # tree.Bind(wx.EVT_MOUSE_EVENTS, self.on_tree_mouse_event)
-                tree.Bind(wx.EVT_RIGHT_DOWN, self.on_tree_node_right_click)
-
-                tree.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK, self.on_tree_node_right_click)
-
-                item = {
-                    "process_name": process_name,
-                    "window_title": key,
-                    "tree": tree,
-                    "root": root,
-                }
-                self._tree_list.append(item)
-        self.switch_control_tree(index)
-
-    def on_getcontrol_btn_click(self, event):
-        """点击获取控件按钮"""
-        self.btn_getcontrol.Enable(False)
-        if not self.cb_activity.GetValue():
-            # 先刷新窗口列表
-            self.on_refresh_btn_click(None)
-
-        if self.cb_activity.GetValue() == "Keyguard":
-            # 锁屏状态
-            dlg = wx.MessageDialog(
-                self,
-                "设备：%s 处于锁屏状态，请手动解锁后点击OK按钮" % self.cb_device.GetValue(),
-                "提示",
-                style=wx.YES_NO | wx.YES_DEFAULT | wx.ICON_QUESTION,
-            )
-            result = dlg.ShowModal()
-            if result == wx.ID_YES:
-                self.on_refresh_btn_click(None)
-            dlg.Destroy()
-
-        self.statusbar.SetStatusText("正在获取控件树……", 0)
-
-        def _update_control_tree():
-            time0 = time.time()
-            try:
-                controls_dict = (
-                    self._control_manager.get_control_tree()
-                )  # self.cb_activity.GetValue().strip(), index
-                if not controls_dict:
-                    return
-            except RuntimeError as e:
-                msg = e.args[0]
-                # if not isinstance(msg, str):
-                #     msg = msg.decode("utf8")
-                def _show_dialog():
-                    dlg = wx.MessageDialog(
-                        self, msg, "查找控件失败", style=wx.OK | wx.ICON_ERROR
-                    )
-                    dlg.ShowModal()
-                    dlg.Destroy()
-                run_in_main_thread(_show_dialog)()
-                return
-
-            used_time = time.time() - time0
-            run_in_main_thread(lambda: self.statusbar.SetStatusText("获取控件树完成，耗时：%s S" % used_time, 0))()
-            msg = ""
-            for key in controls_dict:
-                msg += "\n%s: %d" % (key, len(controls_dict[key]) - 1)
-            Log.i("MainFrame", "get control tree cost %s S%s" % (used_time, msg))
-            self._show_control_tree(controls_dict)
-
-        run_in_thread(_update_control_tree)()
-
-        t = threading.Thread(target=self._refresh_device_screenshot)
-        t.setDaemon(True)
-        t.start()
-
-    @run_in_main_thread
-    def _show_control_tree(self, controls_dict):
-        """显示控件树"""
-        self.show_controls(controls_dict)
-
-        self._mouse_move_enabled = True
-        self.btn_inspect.Enable(True)
-        self.tree.SelectItem(self.root)
-        self.tree.SetFocus()
-        self.btn_getcontrol.Enable(True)
-
-    def on_local_device_selected(self, event):
-        """选择本地设备"""
-        self._device_host = "127.0.0.1"
-        self.tc_dev_host.Enable(False)
-        self.btn_set_device_host.Enable(False)
-
-    def on_remote_device_selected(self, event):
-        """选择远程设备"""
-        self.tc_dev_host.Enable(True)
-        self.btn_set_device_host.Enable(True)
-
-    def _check_device_host(self, hostname):
-        """检查设备主机是否能正常访问"""
-        import socket
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
+    def _set_image(self, image_path):
         try:
-            sock.connect((hostname, 5037))
-            return True
-        except socket.error:
-            pass
+            return self.__set_image(image_path)
+        except:
+            Log.ex("Set image failed")
 
-    def _get_current_control(self, tree, parent, x, y):
-        """获取坐标（x，y）所在的控件"""
-        item_data = tree.GetItemData(parent)
-        if item_data is None:
-            return []
+    def _show_image(self, image):
+        img_width, img_height = image.size
+        panel_width, panel_height = self.screen_panel.Size
+        print(panel_width, panel_height, img_width, img_height)
+        if panel_width < img_width or panel_height < img_height:
+            x_radio = panel_width / img_width
+            y_radio = panel_height / img_height
+            self._scale_rate = min(x_radio, y_radio)
+            img_width = int(self._scale_rate * img_width)
+            img_height = int(self._scale_rate * img_height)
+            self.image.SetSize((img_width, img_height))
+            self.mask_panel.SetSize((img_width, img_height))
+            image = image.resize((img_width, img_height), Image.LANCZOS)
 
-        rect = item_data["Rect"]
-        if x < rect["Left"] or x >= rect["Left"] + rect["Width"]:
-            return []
-        if y < rect["Top"] or y >= rect["Top"] + rect["Height"]:
-            return []
-        if not item_data["Visible"]:
-            return []
+        x = (panel_width - img_width) // 2
+        y = (panel_height - img_height) // 2
 
-        if tree.GetChildrenCount(parent) == 0:
-            return [parent]
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        image = wx.Bitmap.FromPNGData(buffer.getvalue())
+        self.image.SetBitmap(image)
+        self.image.Refresh()
+        self.image.SetPosition((x, y))
+        self.mask_panel.SetPosition((x, y))
 
-        result = []
-        item, cookie = tree.GetFirstChild(parent)
-        while item:
-            result.extend(self._get_current_control(tree, item, x, y))
-            if sys.platform == "win32":
-                item, cookie = tree.GetNextChild(item, cookie)
-            else:
-                item = tree.GetNextSibling(item)
-
-        if len(result) == 0:
-            return [parent]
-        else:
-            return result
-
-    def _expand_tree(self, item):
-        """展开树形控件节点"""
-        if item != self.root:
-            parent = self.tree.GetItemParent(item)
-            self._expand_tree(parent)
-            self.tree.Expand(item)
-        else:
-            self.tree.Expand(self.root)
-
-    def _draw_mask(self, control):
-        """绘制高亮区域"""
-        if not self._scale_rate:
+    def __set_image(self, image_path):
+        """设置图片"""
+        print("set image %s" % image_path)
+        if not os.path.exists(image_path):
+            Log.w(self.__class__.__name__, "Image file %s not exist" % image_path)
             return
-        item_data = self.tree.GetItemData(control)
-        rect = item_data["Rect"]
-        p1 = rect["Left"] * self._scale_rate, rect["Top"] * self._scale_rate
-        p2 = (rect["Left"] + rect["Width"]) * self._scale_rate, (
-            rect["Top"] + rect["Height"]
-        ) * self._scale_rate
-        self.mask_panel.draw_rectangle(p1, p2)
+        if self.cb_auto_refresh.IsChecked():
+            tmp_path = "%d.png" % int(time.time())
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            os.rename(image_path, tmp_path)
+            image_path = tmp_path
+        try:
+            image = Image.open(image_path)
+            image.verify()  # 验证完之后需要重新打开
+            image = Image.open(image_path)
+        except Exception as e:
+            Log.ex("ImageError", image_path, e)
+            return
+        else:
+            self._image_path = image_path
+        self._show_image(image)
+        self.image.Show()
+        self.mask_panel.Show()
 
-    def _close_remote_web_debug(self):
-        """关闭web远程调试"""
-        if self._chrome:
-            self._chrome.close()
-            self._chrome = None
-            self._current_webview = None
-            self.refresh_timer.Stop()
+        # if self.cb_auto_refresh.IsChecked():
+        #     os.remove(temp_path)
+        #     os.remove(image_path)
+
+    def on_inspect_btn_click(self, event):
+        """探测按钮点击回调"""
+        self.btn_inspect.Enable(False)
+        self._enable_inspect = True
 
     def on_mouse_move(self, event):
         """mouse move in screen area"""
         if not self._scale_rate:
             return
 
-        x = int(event.x / self._scale_rate)
-        y = int(event.y / self._scale_rate)
+        x = event.x
+        y = event.y
         if x < 0:
             x = 0
         if y < 0:
             y = 0
-        if x >= self._screen_size[0]:
-            x = self._screen_size[0] - 1
-        if y >= self._screen_size[1]:
-            y = self._screen_size[1] - 1
+        if x >= self.image.Size[0]:
+            x = self.image.Size[0] - 1
+        if y >= self.image.Size[1]:
+            y = self.image.Size[1] - 1
 
+        x = int(x / self._scale_rate)
+        y = int(y / self._scale_rate)
         self.statusbar.SetStatusText("(%d, %d)" % (x, y), 2)
 
         if not self._mouse_move_enabled:
@@ -956,8 +816,6 @@ class MainFrame(wx.Frame):
                 and y > rect["Top"]
                 and y < rect["Top"] + rect["Height"]
             ):
-                from qt4a.androiddriver.util import ControlExpiredError
-
                 try:
                     webview = WebView(
                         self._control_manager.get_driver(self.cb_activity.GetValue()),
@@ -1048,159 +906,123 @@ class MainFrame(wx.Frame):
             self.btn_inspect.Enable(True)
             # self.cb_show_hex.SetValue(False)
 
-    def show_windows(self):
-        """显示Window列表"""
-        self.cb_activity.Clear()
-        self._control_manager.update()
-        current_window = self._window_manager.get_current_window()
+    def _get_current_control(self, tree, parent, x, y):
+        """获取坐标（x，y）所在的控件"""
+        item_data = tree.GetItemData(parent)
+        if item_data is None:
+            return []
 
-        if current_window is None:
-            dlg = wx.MessageDialog(
-                self,
-                "请确认手机是否出现黑屏或ANR",
-                "无法获取当前窗口",
-                style=wx.OK | wx.ICON_ERROR,
-            )
-            dlg.ShowModal()
-            dlg.Destroy()
-            return
+        rect = item_data["Rect"]
+        if x < rect["Left"] or x >= rect["Left"] + rect["Width"]:
+            return []
+        if y < rect["Top"] or y >= rect["Top"] + rect["Height"]:
+            return []
+        if not item_data["Visible"]:
+            return []
 
-        index = 0
-        last_title = ""
-        for window in self._window_manager.get_window_list():
-            if last_title == window.title:
-                index += 1
+        if tree.GetChildrenCount(parent) == 0:
+            return [parent]
+
+        result = []
+        item, cookie = tree.GetFirstChild(parent)
+        while item:
+            result.extend(self._get_current_control(tree, item, x, y))
+            if sys.platform == "win32":
+                item, cookie = tree.GetNextChild(item, cookie)
             else:
-                index = 0
-                last_title = window.title
-            idx = self.cb_activity.Append(
-                window.title + " " * index
-            )  # 避免始终选择到第一项
-            data = window.title + (("::%d" % index) if index > 0 else "")
+                item = tree.GetNextSibling(item)
 
-            self.cb_activity.SetClientData(idx, data)
-            if window.hashcode == current_window.hashcode:
-                self.cb_activity.SetSelection(idx)
-                run_in_main_thread(lambda: self.cb_activity.SetLabelText(window.title))
+        if len(result) == 0:
+            return [parent]
+        else:
+            return result
 
-    def _handle_control_id(self, _id):
-        """处理控件ID"""
-        if _id == "NO_ID":
-            _id = "None"
-        elif _id.startswith("id/"):
-            _id = _id[3:]
-        return _id
+    def _expand_tree(self, item):
+        """展开树形控件节点"""
+        if item != self.root:
+            parent = self.tree.GetItemParent(item)
+            self._expand_tree(parent)
+            self.tree.Expand(item)
+        else:
+            self.tree.Expand(self.root)
 
-    def _add_child(self, process_name, tree, parent, child, is_weex_node=False):
-        """添加树形控件节点"""
-        node_name = self._handle_control_id(child["Id"])
-        if is_weex_node:
-            if not child["Type"].startswith("android.") and not child[
-                "Type"
-            ].startswith("com.android."):
-                driver = self._control_manager._get_driver(process_name)
-                try:
-                    node_name = driver.get_object_field_value(
-                        child["Hashcode"], "mTest"
-                    )
-                except Exception as e:
-                    Log.ex("MainFrame", "get field mTest failed")
-                else:
-                    if not node_name:
-                        node_name = "None"
-        elif child["Type"].endswith(".WeexView"):
-            is_weex_node = True
-        node = tree.AppendItem(parent, node_name, data=child)
-        for subchild in child["Children"]:
-            self._add_child(process_name, tree, node, subchild, is_weex_node)
+    def on_local_device_selected(self, event):
+        """选择本地设备"""
+        self._device_host = "127.0.0.1"
+        self.tc_dev_host.Enable(False)
+        self.btn_set_device_host.Enable(False)
 
-    def switch_control_tree(self, index):
-        """切换控件树"""
-        if index < 0 or index >= len(self._tree_list):
-            return
-        self._tree_idx = index
-        for i in range(len(self._tree_list)):
-            if i == self._tree_idx:
-                self._tree_list[i]["tree"].Show()
-                self.cb_activity.SetValue(self._tree_list[i]["window_title"])
-                self.tc_process_name.SetValue(self._tree_list[i]["process_name"])
+    def on_remote_device_selected(self, event):
+        """选择远程设备"""
+        self.tc_dev_host.Enable(True)
+        self.btn_set_device_host.Enable(True)
+
+    def on_set_device_host_btn_click(self, event):
+        """设置设备主机按钮点击回调"""
+        hostname = self.tc_dev_host.GetValue()
+        if hostname != self._device_host:
+            self.statusbar.SetStatusText("正在检查设备主机: %s……" % hostname, 0)
+            if not self._check_device_host(hostname):
+                dlg = wx.MessageDialog(
+                    self,
+                    "设备主机无法访问！\n请确认设备主机名是否正确，以及网络是否连通",
+                    "设备主机名错误",
+                    style=wx.OK | wx.ICON_ERROR,
+                )
+                result = dlg.ShowModal()
+                dlg.Destroy()
             else:
-                self._tree_list[i]["tree"].Hide()
+                self._device_host = hostname
+                self.statusbar.SetStatusText("检查设备主机: %s 完成" % hostname, 0)
 
-    def show_controls(self, controls_dict):
-        """显示控件树"""
-        self._build_control_trees(controls_dict)
-
-    def on_tree_node_click(self, event):
-        """点击控件树节点"""
-        from manager.controlmanager import WebView
-
-        self.cb_show_hex.SetValue(False)
-        item_id = event.GetItem()
-        self._draw_mask(item_id)
-        item_data = self.tree.GetItemData(item_id)
-        self.tc_id.SetValue(self._handle_control_id(item_data["Id"]))
-        if "ConfusedId" in item_data:
-            self.tc_id.SetHint(self._handle_control_id(item_data["ConfusedId"]))
+    def on_auto_fresh_checked(self, event):
+        """选择了自动刷新"""
+        if self.cb_auto_refresh.IsChecked():
+            if not self._device:
+                dlg = wx.MessageDialog(
+                    self, "尚未选择设备", "错误", style=wx.OK | wx.ICON_ERROR
+                )
+                result = dlg.ShowModal()
+                dlg.Destroy()
+                self.cb_auto_refresh.SetValue(False)
+                return
+            sec = self.tc_refresh_interval.GetValue()
+            self.refresh_timer.Start(int(float(sec) * 1000))
+            self.btn_getcontrol.Enable(False)
+            self.rb_local_device.Enable(False)
+            self.rb_remote_device.Enable(False)
+            self.tc_dev_host.Enable(False)
+            self.btn_set_device_host.Enable(False)
+            self.tc_refresh_interval.Enable(False)
         else:
-            self.tc_id.SetHint("")
-        self.tc_type.SetValue(item_data["Type"])
-        self.tc_visible.SetValue("True" if item_data["Visible"] else "False")
-        self.tc_text.SetValue("")
-        if "Text" in item_data:
-            self.tc_text.SetValue(item_data["Text"])
-            self.tc_text.Enable(True)
-            self.cb_show_hex.Enable(True)
-        else:
-            self.tc_text.Enable(False)
-            self.cb_show_hex.Enable(False)
-        self.btn_set_text.Enable(False)
-        self.tc_hashcode.SetValue("0x%.8X" % item_data["Hashcode"])
-        rect = "(%s, %s, %s, %s)" % (
-            item_data["Rect"]["Left"],
-            item_data["Rect"]["Top"],
-            item_data["Rect"]["Width"],
-            item_data["Rect"]["Height"],
-        )
-        self.tc_rect.SetValue(rect)
-        self.tc_enable.SetValue("True" if item_data["Enabled"] else "False")
-        if "Clickable" in item_data:
-            self.tc_clickable.SetValue("True" if item_data["Clickable"] else "False")
-        else:
-            self.tc_clickable.SetValue("")
-        if "Checkable" in item_data:
-            self.tc_checkable.SetValue("True" if item_data["Checkable"] else "False")
-        else:
-            self.tc_checkable.SetValue("")
-        if "Checked" in item_data:
-            self.tc_checked.SetValue("True" if item_data["Checked"] else "False")
-        else:
-            self.tc_checked.SetValue("")
-        self.tc_desc.SetValue(item_data["Desc"])
+            self.refresh_timer.Stop()
+            self.btn_getcontrol.Enable(True)
+            self.rb_local_device.Enable(True)
+            self.rb_remote_device.Enable(True)
+            self.tc_refresh_interval.Enable(True)
+            if self._device_host:
+                self.tc_dev_host.Enable(True)
+                self.btn_set_device_host.Enable(True)
 
-    # def on_tree_mouse_event(self, event):
-    #     """树型控件鼠标事件"""
-    #     evt_type = event.GetEventType()
-    #     if evt_type != 10034 and evt_type != 10035:
-    #         event.Skip()
-    #         return  # 只处理鼠标右击事件
-
-    #     _, flags = self.tree.HitTest(event.GetPosition())
-    #     if flags & wx.TREE_HITTEST_ONITEMLABEL == 0:
-    #         # 在节点上右击
-    #         self.tree.PopupMenu(TreeNodePopupMenu(self, None), event.GetPosition())
-    #     event.Skip()
-
-    def on_tree_node_right_click(self, event):
+    def on_refresh_timer(self, event):
         """ """
-        item = None
-        if hasattr(event, "GetItem"):
-            item = event.GetItem()
-        if hasattr(event, "Point"):
-            point = event.Point
-        else:
-            point = event.GetPosition()
-        self.tree.PopupMenu(TreeNodePopupMenu(self, item), point)
+        self._work_thread.post_task(self._refresh_device_screenshot, False)
+
+    def on_node_text_changed(self, event):
+        """ """
+        self.btn_set_text.Enable(True)
+
+    def on_set_text_btn_click(self, event):
+        """ """
+        window_title = self.cb_activity.GetValue()
+        hashcode = int(self.tc_hashcode.GetValue(), 16)
+        text = self.tc_text.GetValue()
+        self._control_manager.set_control_text(window_title, hashcode, text)
+        self.statusbar.SetStatusText("设置控件文本成功", 0)
+        time.sleep(0.5)
+        t = threading.Thread(target=self._refresh_device_screenshot, args=(True,))
+        t.setDaemon(True)
+        t.start()
 
     def find_webview_control(self, parent):
         """查找WebView节点"""
@@ -1260,46 +1082,6 @@ class MainFrame(wx.Frame):
         self.tree.SelectItem(control)
         self.tree.SetFocus()
 
-    def locate_by_qpath(self, qpath):
-        """使用QPath定位控件"""
-        window_title = self.cb_activity.GetValue()
-        hashcode = self._control_manager.get_control(window_title, None, qpath)
-        if hashcode == 0:
-            pos = self._control_manager.get_control(window_title, None, qpath, True)
-            split_char = qpath[0]
-            qpath_list = qpath[1:].split(split_char)
-            err_qpath = split_char.join(qpath_list[pos:])
-            if err_qpath:
-                err_qpath = split_char + err_qpath  # 补上前面的分隔符
-            err_msg = "控件：%s 未找到\n未找到部分路径为：【%s】" % (qpath, err_qpath)
-            raise ControlNotFoundError(err_msg)
-        if isinstance(hashcode, list):
-            # 找到重复控件
-            dlg = SwitchNodeDialog(
-                hashcode,
-                self,
-                "共找到%d个重复控件" % len(hashcode),
-                "点击“下一个”按钮切换到下一个重复控件",
-                "上一个",
-                "下一个",
-            )
-            dlg.Show()
-            return
-
-        self._focus_control_by_hashcode(hashcode)
-
-    def on_show_hex_string_checked(self, event):
-        """ """
-        val = self.tc_text.GetValue()
-        if self.cb_show_hex.IsChecked():
-            val = val.encode("utf8")
-            self.tc_text.SetValue(repr(val)[1:-1])
-        else:
-            try:
-                self.tc_text.SetValue(eval("'" + val + "'"))
-            except:
-                Log.ex("eval error")
-
 
 class CanvasPanel(wx.Panel):
     """绘图面板"""
@@ -1355,8 +1137,6 @@ class TreeNodePopupMenu(wx.Menu):
     """树形控件节点弹出菜单"""
 
     def __init__(self, parent, select_node, *args, **kwargs):
-        from manager.controlmanager import EnumWebViewType, WebView
-
         super(TreeNodePopupMenu, self).__init__(*args, **kwargs)
         self._parent = parent
         self._select_node = select_node
@@ -1399,7 +1179,6 @@ class TreeNodePopupMenu(wx.Menu):
             item6.Enable(False)
         else:
             item_data = self._parent.tree.GetItemData(select_node)
-            from qt4a.androiddriver.util import ControlExpiredError
 
             process_name = self._parent._tree_list[self._parent._tree_idx][
                 "process_name"
