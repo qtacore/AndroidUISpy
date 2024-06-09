@@ -158,6 +158,7 @@ class ActivityManager(BaseManager):
         if not self._activities_data:
             self._activities_data = self._get_activities_data()
         result = []
+
         for stack in self._activities_data:
             for task in stack.task_list:
                 for activity in task.activity_list:
@@ -168,10 +169,11 @@ class ActivityManager(BaseManager):
         """获取并解析activity数据"""
         result = self._device.adb.run_shell_cmd("dumpsys activity activities")
         result = result.replace("\r", "")
-        # print result
+        # print(result)
         p1 = re.compile(r"^  Stack #(\d+).*:.*$")
-        p2 = re.compile(r"^    Task id #(\d+)$")
-        p3 = re.compile(r"^\s+\* TaskRecord\{(\w{6,8}) #(\d+)(.+)}$")
+        # p2 = re.compile(r"^    Task id #(\d+)$")
+        p2 = re.compile(r"^\s+\* Task(Record){0,1}\{(\w{6,8}).+")
+        # p3 = re.compile(r"^\s+\* TaskRecord\{(\w{6,8}) #(\d+)(.+)}$")
         p4 = re.compile(r"^\s+\* Hist #(\d+): ActivityRecord{(\w{5,8})(.+)}$")
         stack = None
         task = None
@@ -180,13 +182,10 @@ class ActivityManager(BaseManager):
 
         for line in result.split("\n")[1:]:
             if not line:
-                task = None
                 continue
-            # print repr(line)
-            if "mLastPausedActivity:" in line:
-                stack = None
-                continue
-            if stack == None:
+            # print(repr(line))
+            if stack is None or line.startswith("  Stack "):
+                print(line)
                 if line == "  Main stack:":
                     stack = TaskStack(0)
                     stacks.append(stack)
@@ -198,28 +197,14 @@ class ActivityManager(BaseManager):
                         stack_id = int(ret.group(1)) if not isinstance(ret, bool) else 0
                         stack = TaskStack(stack_id)
                         stacks.append(stack)
-            elif task == None:
+            elif line.startswith("    * Task"):
                 ret = p2.match(line)
+                # print(line, ret)
                 if ret:
-                    task = Task(int(ret.group(1)))
+                    task = Task(ret.group(1))
                     stack.add_task(task)
-            elif task.task_record == None:
-                ret = p3.match(line)
-                if ret:
-                    package_name = ""
-                    items = ret.group(3).strip().split(" ")
-                    for item in items:
-                        if not "=" in item:
-                            continue
-                        key, val = item.split("=")
-                        if key == "A":
-                            package_name = val
-                            break
-                    task_record = TaskRecord(
-                        ret.group(1), int(ret.group(2)), package_name
-                    )
-                    task.task_record = task_record
-            elif hist == None:
+                    hist = None
+            elif line.startswith("      * Hist "):
                 ret = p4.match(line)
                 if ret:
                     activity = ""
@@ -233,7 +218,8 @@ class ActivityManager(BaseManager):
                     activity_record = ActivityRecord(ret.group(2), task_id, activity)
                     hist = Activity(int(ret.group(1)), activity_record)
                     task.add_activity(hist)
-            elif line.startswith("    "):
+            elif hist and line.startswith("    "):
+                # print(line)
                 items = line.split(" ")
                 for item in items:
                     if not "=" in item:

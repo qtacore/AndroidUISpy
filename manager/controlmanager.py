@@ -21,12 +21,14 @@ import re
 import json
 import time
 
+from qt4a.androiddriver.androiddriver import AndroidDriver
 from qt4a.androiddriver.util import ControlAmbiguousError
 
-from manager import BaseManager
+from utils.logger import Log
+
+from . import BaseManager
 from .activitymanager import ActivityManager
 from .windowmanager import WindowManager
-from utils.logger import Log
 
 
 class EnumWebViewType(object):
@@ -49,7 +51,6 @@ class ControlManager(BaseManager):
 
     def _get_driver(self, process_name):
         """获取AndroidDriver实例"""
-        from qt4a.androiddriver.androiddriver import AndroidDriver
 
         if not process_name in self._driver_dict:
             driver = AndroidDriver.create(process_name, self._device)
@@ -90,7 +91,7 @@ class ControlManager(BaseManager):
                         target_window = window
                     break
             else:
-                raise RuntimeError(u"查找窗口： %s 失败" % window_hashcode_or_title)
+                raise RuntimeError("查找窗口： %s 失败" % window_hashcode_or_title)
 
         for activity in self._activity_manager.get_activity_list():
             if activity.name == target_window.title:
@@ -159,7 +160,9 @@ class ControlManager(BaseManager):
             except Exception:
                 Log.ex("ControlManager", "get control tree in %s failed" % process_name)
                 return
-            result.update(control_tree)  # 相同窗口名的窗口必然在同一进程中，所以不会冲突
+            result.update(
+                control_tree
+            )  # 相同窗口名的窗口必然在同一进程中，所以不会冲突
             process_list.append(process_name)
 
         current_process = self._get_window_process(current_window)
@@ -167,7 +170,9 @@ class ControlManager(BaseManager):
         if current_process is None:
             Log.w("ControlManager", "get process of %s failed" % current_window)
             current_process = package_name
-        result = self._get_control_tree(current_process)  # 先获取当前窗口所在进程中的所有控件树
+        result = self._get_control_tree(
+            current_process
+        )  # 先获取当前窗口所在进程中的所有控件树
         process_list.append(current_process)
 
         ################################################

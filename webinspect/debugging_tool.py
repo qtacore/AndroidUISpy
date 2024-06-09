@@ -29,10 +29,7 @@ def replace_url_func_wrap(func):
         if not url:
             return url
         url = url.replace("?ws=127.0.0.1/", "?ws=/")  # 避免最后生成的url错误
-        return url.replace(
-            "chrome-devtools-frontend.appspot.com",
-            "chrome-devtools-frontend.netlify.com",
-        )
+        return url
 
     return _func
 
