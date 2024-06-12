@@ -675,7 +675,8 @@ class MainFrame(wx.Frame):
         if use_cmd:
             self._device.adb.run_shell_cmd("rm -f %s" % tmp_path)
             self._device.adb.run_shell_cmd("screencap %s" % tmp_path)
-            self._device.adb.run_shell_cmd("chmod 444 %s" % tmp_path)
+            # 非root手机截图需要700权限
+            self._device.adb.run_shell_cmd("chmod 700 %s" % tmp_path)
             self._device.adb.pull_file(tmp_path, path)
         else:
             self._device.take_screen_shot(path, 10)
