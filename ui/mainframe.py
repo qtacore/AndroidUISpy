@@ -214,13 +214,17 @@ class MainFrame(wx.Frame):
         self.tc_refresh_interval = wx.TextCtrl(
             panel, pos=(670, 50), size=wx.Size(30, 20)
         )
-        self.tc_refresh_interval.SetValue("1")
+        self.tc_refresh_interval.SetValue("0.5")
         wx.StaticText(panel, label="秒", pos=(710, 52), size=wx.DefaultSize)
 
         self.refresh_timer = wx.Timer(self)
         self.Bind(
             wx.EVT_TIMER, self.on_refresh_timer, self.refresh_timer
         )  # 绑定一个计时器
+
+        self.cb_allow_input = wx.CheckBox(
+            panel, label="允许输入", pos=(750, 52), size=wx.DefaultSize
+        )
 
     def _init_property_panel(self, panel):
         wx.StaticBox(
@@ -378,9 +382,12 @@ class MainFrame(wx.Frame):
             self.cb_activity.SetValue("")
             self._window_manager = WindowManager.get_instance(self._device)
             self._control_manager = ControlManager.get_instance(self._device)
-            wx.CallLater(
-                1000, lambda: self.on_getcontrol_btn_click(None)
-            )  # 自动获取控件树
+            # wx.CallLater(
+            #     1000, lambda: self.on_getcontrol_btn_click(None)
+            # )  # 自动获取控件树
+            t = threading.Thread(target=self._refresh_device_screenshot)
+            t.setDaemon(True)
+            t.start()
 
         self.btn_refresh.Enable(True)
         self.btn_getcontrol.Enable(True)
@@ -670,26 +677,23 @@ class MainFrame(wx.Frame):
                 self._tree_list.append(item)
         self.switch_control_tree(index)
 
-    def _take_screen_shot(self, tmp_path, path, use_cmd=True):
-        """屏幕截图"""
-        if use_cmd:
-            self._device.adb.run_shell_cmd("rm -f %s" % tmp_path)
-            self._device.adb.run_shell_cmd("screencap %s" % tmp_path)
-            self._device.adb.run_shell_cmd("chmod 444 %s" % tmp_path)
-            self._device.adb.pull_file(tmp_path, path)
-        else:
-            self._device.take_screen_shot(path, 10)
+    # def _take_screen_shot(self, tmp_path, path, use_cmd=True):
+    #     """屏幕截图"""
+    #     if use_cmd:
+    #         self._device.adb.run_shell_cmd("rm -f %s" % tmp_path)
+    #         self._device.adb.run_shell_cmd("screencap %s" % tmp_path)
+    #         self._device.adb.run_shell_cmd("chmod 444 %s" % tmp_path)
+    #         self._device.adb.pull_file(tmp_path, path)
+    #     else:
+    #         self._device.take_screen_shot(path, 10)
 
-    def _refresh_device_screenshot(self, use_cmd=False):
+    def _refresh_device_screenshot(self):
         """设置手机屏幕截图"""
         path = os.path.join(os.path.abspath(os.curdir), "screen.png")
         # Log.d('Screenshot', path)
-        tmp_path = "/data/local/tmp/screen.png"
 
-        if self._device.adb.get_sdk_version() >= 29:
-            use_cmd = True
         try:
-            self._take_screen_shot(tmp_path, path, use_cmd)
+            self._device.take_screen_shot(path, 10)
         except:
             Log.ex("take_screen_shot error")
             return
@@ -700,18 +704,26 @@ class MainFrame(wx.Frame):
         # image = Image.open(path)
         # image = image.rotate(90, expand=True)
         # image.save(path)
-        run_in_main_thread(self._set_image)(path)
 
-    def _set_image(self, image_path):
         try:
-            return self.__set_image(image_path)
+            image = Image.open(path)
+            image.verify()  # 验证完之后需要重新打开
+            image = Image.open(path)
+        except Exception as e:
+            Log.ex("ImageError", path, e)
+            return
+
+        run_in_main_thread(self._set_image)(image)
+
+    def _set_image(self, image):
+        try:
+            return self.__set_image(image)
         except:
             Log.ex("Set image failed")
 
     def _show_image(self, image):
         img_width, img_height = image.size
         panel_width, panel_height = self.screen_panel.Size
-        print(panel_width, panel_height, img_width, img_height)
         if panel_width < img_width or panel_height < img_height:
             x_radio = panel_width / img_width
             y_radio = panel_height / img_height
@@ -733,34 +745,11 @@ class MainFrame(wx.Frame):
         self.image.SetPosition((x, y))
         self.mask_panel.SetPosition((x, y))
 
-    def __set_image(self, image_path):
+    def __set_image(self, image):
         """设置图片"""
-        print("set image %s" % image_path)
-        if not os.path.exists(image_path):
-            Log.w(self.__class__.__name__, "Image file %s not exist" % image_path)
-            return
-        if self.cb_auto_refresh.IsChecked():
-            tmp_path = "%d.png" % int(time.time())
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            os.rename(image_path, tmp_path)
-            image_path = tmp_path
-        try:
-            image = Image.open(image_path)
-            image.verify()  # 验证完之后需要重新打开
-            image = Image.open(image_path)
-        except Exception as e:
-            Log.ex("ImageError", image_path, e)
-            return
-        else:
-            self._image_path = image_path
         self._show_image(image)
         self.image.Show()
         self.mask_panel.Show()
-
-        # if self.cb_auto_refresh.IsChecked():
-        #     os.remove(temp_path)
-        #     os.remove(image_path)
 
     def on_inspect_btn_click(self, event):
         """探测按钮点击回调"""
@@ -787,9 +776,25 @@ class MainFrame(wx.Frame):
         y = int(y / self._scale_rate)
         self.statusbar.SetStatusText("(%d, %d)" % (x, y), 2)
 
-        if not self._mouse_move_enabled:
+        if self.cb_allow_input.IsChecked():
+            self._send_input_event(x, y, event)
             return
 
+        if self._mouse_move_enabled:
+            self._locate_control_tree(x, y, event)
+
+    def _send_input_event(self, x, y, event):
+        send_down_event = event.EventType == wx.EVT_LEFT_DOWN.typeId
+        send_up_event = event.EventType == wx.EVT_LEFT_UP.typeId
+        self._device.drag(
+            x, y, x, y, 1, send_down_event=send_down_event, send_up_event=send_up_event
+        )
+        if send_down_event:
+            Log.i("Input", "[Down] %d %d" % (x, y))
+        if send_up_event:
+            Log.i("Input", "[Up] %d %d" % (x, y))
+
+    def _locate_control_tree(self, x, y, event):
         if not hasattr(self, "_last_mouse_pos"):
             self._last_mouse_pos = x, y
         else:
@@ -1006,7 +1011,7 @@ class MainFrame(wx.Frame):
 
     def on_refresh_timer(self, event):
         """ """
-        self._work_thread.post_task(self._refresh_device_screenshot, False)
+        self._work_thread.post_task(self._refresh_device_screenshot)
 
     def on_node_text_changed(self, event):
         """ """
@@ -1020,7 +1025,7 @@ class MainFrame(wx.Frame):
         self._control_manager.set_control_text(window_title, hashcode, text)
         self.statusbar.SetStatusText("设置控件文本成功", 0)
         time.sleep(0.5)
-        t = threading.Thread(target=self._refresh_device_screenshot, args=(True,))
+        t = threading.Thread(target=self._refresh_device_screenshot, args=())
         t.setDaemon(True)
         t.start()
 
