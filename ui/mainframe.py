@@ -689,7 +689,7 @@ class MainFrame(wx.Frame):
 
     def _refresh_device_screenshot(self):
         """设置手机屏幕截图"""
-        path = os.path.join(os.path.abspath(os.curdir), "screen.png")
+        path = os.path.join(os.path.abspath(os.curdir), "screen.jpg")
         # Log.d('Screenshot', path)
 
         try:
